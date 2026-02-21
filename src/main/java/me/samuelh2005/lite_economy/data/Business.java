@@ -57,7 +57,7 @@ public class Business {
 
             public static final Codec<Role> CODEC = Codec.STRING.xmap(str -> {
                 for (Role role : Role.values()) {
-                    if (role.value.equals(str)) {
+                    if (role.value.equals(str.toLowerCase())) {
                         return role;
                     }
                 }

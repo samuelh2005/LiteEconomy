@@ -13,6 +13,7 @@ import me.samuelh2005.lite_economy.LiteEconomy;
 import me.samuelh2005.lite_economy.TransactionService;
 import me.samuelh2005.lite_economy.data.AccountOwner;
 import me.samuelh2005.lite_economy.data.BankAccount;
+import me.samuelh2005.lite_economy.data.Business;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
@@ -36,16 +37,16 @@ public final class BankCommand {
                             .executes(BankCommand::balancePlayerAccount)))
                     .then(Commands.literal("business")
                         .then(Commands.argument("business", StringArgumentType.string())
-                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(getManageableBusinessNames(getPlayer(context)), builder))
+                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getManageableBusinessNames(getPlayer(context))), builder))
                             .executes(BankCommand::balanceBusiness)
                             .then(Commands.argument("account", StringArgumentType.string())
-                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(getBusinessAccountNames(getPlayer(context), StringArgumentType.getString(context, "business")), builder))
+                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getBusinessAccountNames(getPlayer(context), StringArgumentType.getString(context, "business"))), builder))
                                 .executes(BankCommand::balanceBusinessAccount)))))
                 .then(Commands.literal("accounts")
                     .then(Commands.literal("player").executes(BankCommand::accountsPlayer))
                     .then(Commands.literal("business")
                         .then(Commands.argument("business", StringArgumentType.string())
-                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(getManageableBusinessNames(getPlayer(context)), builder))
+                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getManageableBusinessNames(getPlayer(context))), builder))
                             .executes(BankCommand::accountsBusiness))))
                 .then(Commands.literal("create")
                     .then(Commands.literal("player")
@@ -53,46 +54,46 @@ public final class BankCommand {
                             .executes(BankCommand::createPlayer)))
                     .then(Commands.literal("business")
                         .then(Commands.argument("business", StringArgumentType.string())
-                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(getManageableBusinessNames(getPlayer(context)), builder))
+                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getManageableBusinessNames(getPlayer(context))), builder))
                             .then(Commands.argument("name", StringArgumentType.string())
                                 .executes(BankCommand::createBusiness)))))
                 .then(Commands.literal("deposit")
                     .then(Commands.literal("player")
                         .then(Commands.argument("account", StringArgumentType.string())
-                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(getOwnedAccountNames(getPlayer(context)), builder))
+                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getOwnedAccountNames(getPlayer(context))), builder))
                             .then(Commands.argument("amount", DoubleArgumentType.doubleArg(0.01D))
                                 .executes(BankCommand::depositPlayer))))
                     .then(Commands.literal("business")
                         .then(Commands.argument("business", StringArgumentType.string())
-                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(getManageableBusinessNames(getPlayer(context)), builder))
+                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getManageableBusinessNames(getPlayer(context))), builder))
                             .then(Commands.argument("account", StringArgumentType.string())
-                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(getBusinessAccountNames(getPlayer(context), StringArgumentType.getString(context, "business")), builder))
+                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getBusinessAccountNames(getPlayer(context), StringArgumentType.getString(context, "business"))), builder))
                                 .then(Commands.argument("amount", DoubleArgumentType.doubleArg(0.01D))
                                     .executes(BankCommand::depositBusiness))))))
                 .then(Commands.literal("withdraw")
                     .then(Commands.literal("player")
                         .then(Commands.argument("account", StringArgumentType.string())
-                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(getOwnedAccountNames(getPlayer(context)), builder))
+                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getOwnedAccountNames(getPlayer(context))), builder))
                             .then(Commands.argument("amount", DoubleArgumentType.doubleArg(0.01D))
                                 .executes(BankCommand::withdrawPlayer))))
                     .then(Commands.literal("business")
                         .then(Commands.argument("business", StringArgumentType.string())
-                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(getManageableBusinessNames(getPlayer(context)), builder))
+                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getManageableBusinessNames(getPlayer(context))), builder))
                             .then(Commands.argument("account", StringArgumentType.string())
-                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(getBusinessAccountNames(getPlayer(context), StringArgumentType.getString(context, "business")), builder))
+                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getBusinessAccountNames(getPlayer(context), StringArgumentType.getString(context, "business"))), builder))
                                 .then(Commands.argument("amount", DoubleArgumentType.doubleArg(0.01D))
                                     .executes(BankCommand::withdrawBusiness))))))
                 .then(Commands.literal("rename")
                     .then(Commands.literal("player")
                         .then(Commands.argument("account", StringArgumentType.string())
-                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(getOwnedAccountNames(getPlayer(context)), builder))
+                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getOwnedAccountNames(getPlayer(context))), builder))
                             .then(Commands.argument("name", StringArgumentType.string())
                                 .executes(BankCommand::renamePlayer))))
                     .then(Commands.literal("business")
                         .then(Commands.argument("business", StringArgumentType.string())
-                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(getManageableBusinessNames(getPlayer(context)), builder))
+                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getManageableBusinessNames(getPlayer(context))), builder))
                             .then(Commands.argument("account", StringArgumentType.string())
-                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(getBusinessAccountNames(getPlayer(context), StringArgumentType.getString(context, "business")), builder))
+                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getBusinessAccountNames(getPlayer(context), StringArgumentType.getString(context, "business"))), builder))
                                 .then(Commands.argument("name", StringArgumentType.string())
                                     .executes(BankCommand::renameBusiness))))))
         );
@@ -111,7 +112,7 @@ public final class BankCommand {
     private static int balanceBusiness(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
         String businessName = StringArgumentType.getString(context, "business");
-        Optional<me.samuelh2005.lite_economy.data.Business> business = resolveManageableBusiness(player, businessName);
+        Optional<Business> business = resolveManageableBusiness(player, businessName);
         if (business.isEmpty()) {
             context.getSource().sendFailure(Component.literal("Business not found or not manageable: " + businessName));
             return 0;
@@ -170,7 +171,7 @@ public final class BankCommand {
     private static int accountsBusiness(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
         String businessName = StringArgumentType.getString(context, "business");
-        Optional<me.samuelh2005.lite_economy.data.Business> business = resolveManageableBusiness(player, businessName);
+        Optional<Business> business = resolveManageableBusiness(player, businessName);
         if (business.isEmpty()) {
             context.getSource().sendFailure(Component.literal("Business not found or not manageable: " + businessName));
             return 0;
@@ -203,9 +204,11 @@ public final class BankCommand {
             context.getSource().sendFailure(Component.literal("Could not create bank account."));
             return 0;
         }
+        BankAccount createdAccount = account.orElseThrow();
+        LiteEconomy.getDataStorage().save(createdAccount);
 
         context.getSource().sendSuccess(
-            () -> Component.literal("Created account '" + account.get().getAccountName() + "' with id=" + account.get().getId()),
+            () -> Component.literal("Created account '" + createdAccount.getAccountName() + "' with id=" + createdAccount.getId()),
             true
         );
         return 1;
@@ -220,7 +223,7 @@ public final class BankCommand {
             return 0;
         }
 
-        Optional<me.samuelh2005.lite_economy.data.Business> business = resolveManageableBusiness(player, businessName);
+        Optional<Business> business = resolveManageableBusiness(player, businessName);
         if (business.isEmpty()) {
             context.getSource().sendFailure(Component.literal("Business not found or not manageable: " + businessName));
             return 0;
@@ -230,8 +233,10 @@ public final class BankCommand {
             context.getSource().sendFailure(Component.literal("Could not create bank account."));
             return 0;
         }
+        BankAccount createdAccount = account.orElseThrow();
+        LiteEconomy.getDataStorage().save(createdAccount);
         context.getSource().sendSuccess(
-            () -> Component.literal("Created business account '" + account.get().getAccountName() + "' with id=" + account.get().getId()),
+            () -> Component.literal("Created business account '" + createdAccount.getAccountName() + "' with id=" + createdAccount.getId()),
             true
         );
         return 1;
@@ -369,13 +374,13 @@ public final class BankCommand {
             .filter(business -> business.getMembers().stream()
                 .anyMatch(member ->
                     member.getPlayerId().equals(player.getUUID()) &&
-                    (member.getRole() == me.samuelh2005.lite_economy.data.Business.BusinessMember.Role.OWNER ||
-                        member.getRole() == me.samuelh2005.lite_economy.data.Business.BusinessMember.Role.MANAGER)))
+                    (member.getRole() == Business.BusinessMember.Role.OWNER ||
+                        member.getRole() == Business.BusinessMember.Role.MANAGER)))
             .findFirst();
     }
 
     private static Optional<BankAccount> resolveManagedBusinessAccount(ServerPlayer player, String businessName, String accountName) {
-        Optional<me.samuelh2005.lite_economy.data.Business> business = resolveManageableBusiness(player, businessName);
+        Optional<Business> business = resolveManageableBusiness(player, businessName);
         if (business.isEmpty()) {
             return Optional.empty();
         }
@@ -396,14 +401,14 @@ public final class BankCommand {
             .filter(business -> business.getMembers().stream()
                 .anyMatch(member ->
                     member.getPlayerId().equals(player.getUUID()) &&
-                    (member.getRole() == me.samuelh2005.lite_economy.data.Business.BusinessMember.Role.OWNER ||
-                        member.getRole() == me.samuelh2005.lite_economy.data.Business.BusinessMember.Role.MANAGER)))
-            .map(me.samuelh2005.lite_economy.data.Business::getName)
+                    (member.getRole() == Business.BusinessMember.Role.OWNER ||
+                        member.getRole() == Business.BusinessMember.Role.MANAGER)))
+            .map(Business::getName)
             .toList();
     }
 
     private static List<String> getBusinessAccountNames(ServerPlayer player, String businessName) {
-        Optional<me.samuelh2005.lite_economy.data.Business> business = resolveManageableBusiness(player, businessName);
+        Optional<Business> business = resolveManageableBusiness(player, businessName);
         if (business.isEmpty()) {
             return List.of();
         }

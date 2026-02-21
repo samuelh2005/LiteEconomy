@@ -21,7 +21,7 @@ public class AccountOwner {
 
         public static final Codec<Type> CODEC = Codec.STRING.xmap(str -> {
             for (Type type : Type.values()) {
-                if (type.value.equals(str)) {
+                if (type.value.equals(str.toLowerCase())) {
                     return type;
                 }
             }

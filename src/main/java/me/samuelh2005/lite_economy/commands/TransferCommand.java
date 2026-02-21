@@ -28,9 +28,9 @@ public final class TransferCommand {
         dispatcher.register(Commands.literal("transfer")
             .requires(source -> source.getEntity() instanceof ServerPlayer)
             .then(Commands.argument("from_account", StringArgumentType.string())
-                .suggests((context, builder) -> SharedSuggestionProvider.suggest(getWithdrawableAccountNames(getPlayer(context)), builder))
+                .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getWithdrawableAccountNames(getPlayer(context))), builder))
                 .then(Commands.argument("to_account", StringArgumentType.string())
-                    .suggests((context, builder) -> SharedSuggestionProvider.suggest(getAllAccountNames(), builder))
+                    .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getAllAccountNames()), builder))
                     .then(Commands.argument("amount", DoubleArgumentType.doubleArg(0.01D))
                         .executes(TransferCommand::transfer)))));
     }
