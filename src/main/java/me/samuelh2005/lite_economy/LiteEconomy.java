@@ -8,6 +8,7 @@ import net.minecraft.server.level.ServerLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import me.samuelh2005.lite_economy.commands.EconomyCommands;
 import me.samuelh2005.lite_economy.data.storage.DataStorage;
 import me.samuelh2005.lite_economy.data.storage.LevelNBTStorage;
 
@@ -24,6 +25,7 @@ public class LiteEconomy implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
+		EconomyCommands.register();
         ServerWorldEvents.LOAD.register((MinecraftServer server, ServerLevel world) -> {
 			if (world.dimension() != world.getServer().overworld().dimension()) return;
 			LiteEconomy.server = server;
