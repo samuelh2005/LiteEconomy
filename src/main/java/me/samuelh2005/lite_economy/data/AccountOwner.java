@@ -43,6 +43,10 @@ public class AccountOwner {
         return new AccountOwner(Type.PLAYER, player.getUUID(), player.getPlainTextName());
     }
 
+    public static AccountOwner forBusiness(Business business) {
+        return new AccountOwner(Type.BUSINESS, business.getId(), business.getName());
+    }
+
     private AccountOwner(Type type, UUID id, String name) {
         this.type = type;
         this.id = id;
