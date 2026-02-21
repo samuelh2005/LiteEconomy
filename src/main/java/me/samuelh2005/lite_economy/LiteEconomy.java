@@ -8,7 +8,8 @@ import net.minecraft.server.level.ServerLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import me.samuelh2005.lite_economy.data.EconomyData;
+import me.samuelh2005.lite_economy.data.storage.DataStorage;
+import me.samuelh2005.lite_economy.data.storage.LevelNBTStorage;
 
 public class LiteEconomy implements ModInitializer {
 	public static final String MOD_ID = "lite_economy";
@@ -18,6 +19,7 @@ public class LiteEconomy implements ModInitializer {
 	// That way, it's clear which mod wrote info, warnings, and errors.
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
+	private static LevelNBTStorage levelNBTStorage;
 	private static MinecraftServer server;
 
 	@Override
@@ -25,14 +27,23 @@ public class LiteEconomy implements ModInitializer {
         ServerWorldEvents.LOAD.register((MinecraftServer server, ServerLevel world) -> {
 			if (world.dimension() != world.getServer().overworld().dimension()) return;
 			LiteEconomy.server = server;
-
-			EconomyData.init(server);
-			EconomyService.loadPendingTransactionsFromStorage();
+			levelNBTStorage = world.getDataStorage().computeIfAbsent(LevelNBTStorage.TYPE);
+			TransactionService.loadPendingTransactionsFromStorage();
 			LOGGER.info("Initialized EconomyData for world: " + world.dimension().location());
         });
 	}
 
 	public static MinecraftServer getServer() {
+		if (server == null) {
+			throw new IllegalStateException("Minecraft server has not been initialized yet!");
+		}
 		return server;
+	}
+
+	public static DataStorage getDataStorage() {
+		if (levelNBTStorage == null) {
+			throw new IllegalStateException("Economy data storage has not been initialized yet!");
+		}
+		return levelNBTStorage;
 	}
 }

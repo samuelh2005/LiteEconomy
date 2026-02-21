@@ -77,6 +77,10 @@ public class Business {
             return new BusinessMember(player.getUUID(), role);
         }
 
+        public static BusinessMember forPlayer(UUID playerId, Role role) {
+            return new BusinessMember(playerId, role);
+        }
+
         private BusinessMember(UUID playerId, Role role) {
             this.playerId = playerId;
             this.role = role;
