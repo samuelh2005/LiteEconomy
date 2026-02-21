@@ -6,10 +6,13 @@ import java.util.List;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 
 public class EconomyData extends SavedData {
+    private static EconomyData instance;
+
     public static final Codec<EconomyData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
         BankAccount.CODEC.listOf().fieldOf("bankAccounts").forGetter(EconomyData::getBankAccounts),
         Business.CODEC.listOf().fieldOf("businesses").forGetter(EconomyData::getBusinesses)
@@ -25,12 +28,12 @@ public class EconomyData extends SavedData {
     private List<BankAccount> bankAccounts;
     private List<Business> businesses;
 
-    public EconomyData() {
+    private EconomyData() {
         this.bankAccounts = new ArrayList<>();
         this.businesses = new ArrayList<>();
     }
 
-    public EconomyData(List<BankAccount> bankAccounts, List<Business> businesses) {
+    private EconomyData(List<BankAccount> bankAccounts, List<Business> businesses) {
         this.bankAccounts = new ArrayList<>(bankAccounts);
         this.businesses = new ArrayList<>(businesses);
     }
@@ -41,5 +44,16 @@ public class EconomyData extends SavedData {
 
     public List<Business> getBusinesses() {
         return businesses;
+    }
+
+    public static void init(MinecraftServer server) {
+        instance = server.overworld().getDataStorage().computeIfAbsent(TYPE);
+    }
+
+    public static EconomyData get() {
+        if (instance == null) {
+            throw new IllegalStateException("EconomyData has not been initialized yet!");
+        }
+        return instance;
     }
 }

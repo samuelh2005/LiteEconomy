@@ -1,9 +1,14 @@
 package me.samuelh2005.lite_economy;
 
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import me.samuelh2005.lite_economy.data.EconomyData;
 
 public class LiteEconomy implements ModInitializer {
 	public static final String MOD_ID = "lite_economy";
@@ -15,10 +20,11 @@ public class LiteEconomy implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
-		// This code runs as soon as Minecraft is in a mod-load-ready state.
-		// However, some things (like resources) may still be uninitialized.
-		// Proceed with mild caution.
+        ServerWorldEvents.LOAD.register((MinecraftServer server, ServerLevel world) -> {
+			if (world.dimension() != world.getServer().overworld().dimension()) return;
 
-		LOGGER.info("Hello Fabric world!");
+			EconomyData.init(server);
+			LOGGER.info("Initialized EconomyData for world: " + world.dimension().location());
+        });
 	}
 }

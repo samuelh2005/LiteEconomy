@@ -1,5 +1,7 @@
 package me.samuelh2005.lite_economy.data;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.UUID;
 
 import com.mojang.serialization.Codec;
@@ -12,20 +14,28 @@ public class BankAccount {
     private final AccountOwner owner;
 
     private String accountName;
-    private double balance;
+    private BigDecimal balance;
+
+    private static final Codec<BigDecimal> BIG_DECIMAL_CODEC = Codec.STRING.xmap(str -> {
+        try {
+            return new BigDecimal(str);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid BigDecimal: " + str, e);
+        }
+    }, BigDecimal::toString);
 
     public static final Codec<BankAccount> CODEC = RecordCodecBuilder.create(instance -> instance.group(
         UUIDUtil.STRING_CODEC.fieldOf("id").forGetter(BankAccount::getId),
         Codec.STRING.fieldOf("accountName").forGetter(BankAccount::getAccountName),
-        Codec.DOUBLE.fieldOf("balance").forGetter(BankAccount::getBalance),
+        BIG_DECIMAL_CODEC.fieldOf("balance").forGetter(BankAccount::getBalance),
         AccountOwner.CODEC.fieldOf("owner").forGetter(BankAccount::getOwner)
     ).apply(instance, BankAccount::new));
 
-    public BankAccount(UUID id, String accountName, double balance, AccountOwner owner) {
+    public BankAccount(UUID id, String accountName, BigDecimal balance, AccountOwner owner) {
         this.id = id;
         this.owner = owner;
         this.accountName = accountName;
-        this.balance = balance;
+        this.balance = balance.setScale(2, RoundingMode.HALF_UP);
     }
 
     public UUID getId() {
@@ -44,11 +54,11 @@ public class BankAccount {
         this.accountName = accountName;
     }
 
-    public double getBalance() {
+    public BigDecimal getBalance() {
         return balance;
     }
 
-    public void setBalance(double balance) {
-        this.balance = balance;
+    public void setBalance(BigDecimal balance) {
+        this.balance = balance.setScale(2, RoundingMode.HALF_UP);
     }
 }
