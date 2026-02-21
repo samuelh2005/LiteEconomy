@@ -18,13 +18,21 @@ public class LiteEconomy implements ModInitializer {
 	// That way, it's clear which mod wrote info, warnings, and errors.
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
+	private static MinecraftServer server;
+
 	@Override
 	public void onInitialize() {
         ServerWorldEvents.LOAD.register((MinecraftServer server, ServerLevel world) -> {
 			if (world.dimension() != world.getServer().overworld().dimension()) return;
+			LiteEconomy.server = server;
 
 			EconomyData.init(server);
+			EconomyService.loadPendingTransactionsFromStorage();
 			LOGGER.info("Initialized EconomyData for world: " + world.dimension().location());
         });
+	}
+
+	public static MinecraftServer getServer() {
+		return server;
 	}
 }
