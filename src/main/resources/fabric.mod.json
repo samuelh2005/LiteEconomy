@@ -1,0 +1,32 @@
+{
+	"schemaVersion": 1,
+	"id": "lite_economy",
+	"version": "${version}",
+	"name": "Lite Economy",
+	"description": "A simple economy mod for Minecraft.",
+	"authors": [
+		"samuelh2005"
+	],
+	"contact": {
+		"homepage": "https://github.com/samuelh2005/LiteEconomy",
+		"sources": "https://github.com/samuelh2005/LiteEconomy",
+		"issues": "https://github.com/samuelh2005/LiteEconomy/issues"
+	},
+	"license": "GPL-3.0",
+	"icon": "assets/lite_economy/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"me.samuelh2005.lite_economy.LiteEconomy"
+		]
+	},
+	"mixins": [
+		"lite_economy.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.18.4",
+		"minecraft": "~1.21.10",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
