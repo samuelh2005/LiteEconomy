@@ -131,18 +131,21 @@ public static final Codec<LevelNBTStorage> CODEC = RecordCodecBuilder.create(ins
     @Override
     public void save(BankAccount bankAccount) {
         Objects.requireNonNull(bankAccount, "bankAccount");
+        this.bankAccounts.put(bankAccount.getId(), bankAccount);
         setDirty();
     }
 
     @Override
     public void save(Business business) {
         Objects.requireNonNull(business, "business");
+        this.businesses.put(business.getId(), business);
         setDirty();
     }
 
     @Override
     public void save(Transaction transaction) {
         Objects.requireNonNull(transaction, "transaction");
+        this.transactions.put(transaction.getId(), transaction);
         setDirty();
     }
 }
