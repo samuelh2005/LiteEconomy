@@ -10,7 +10,7 @@ public final class EconomyCommands {
         CommandRegistrationCallback.EVENT.register((dispatcher, buildContext, environment) -> {
             BankCommand.register(dispatcher);
             BusinessCommand.register(dispatcher);
-            TransferCommand.register(dispatcher);
+            PayCommand.register(dispatcher);
         });
     }
 }

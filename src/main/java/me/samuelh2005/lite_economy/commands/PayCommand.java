@@ -20,19 +20,19 @@ import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
-public final class TransferCommand {
-    private TransferCommand() {
+public final class PayCommand {
+    private PayCommand() {
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        dispatcher.register(Commands.literal("transfer")
+        dispatcher.register(Commands.literal("pay")
             .requires(source -> source.getEntity() instanceof ServerPlayer)
             .then(Commands.argument("from_account", StringArgumentType.string())
                 .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getWithdrawableAccountNames(getPlayer(context))), builder))
                 .then(Commands.argument("to_account", StringArgumentType.string())
                     .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getAllAccountNames()), builder))
                     .then(Commands.argument("amount", DoubleArgumentType.doubleArg(0.01D))
-                        .executes(TransferCommand::transfer)))));
+                        .executes(PayCommand::transfer)))));
     }
 
     private static int transfer(CommandContext<CommandSourceStack> context) {
