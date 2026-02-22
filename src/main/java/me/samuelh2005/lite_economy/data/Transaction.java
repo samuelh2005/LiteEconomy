@@ -38,8 +38,8 @@ public class Transaction {
 
     private final UUID id;
     private final UUID actor;
-    private final UUID from;
-    private final UUID to;
+    private final Optional<UUID> from;
+    private final Optional<UUID> to;
     private final BigDecimal amount;
     private final long createdAtEpochMs;
     private Long completedAtEpochMs;
@@ -48,10 +48,14 @@ public class Transaction {
     private final AtomicBoolean completionStarted;
 
     public Transaction(Player actor, BankAccount from, BankAccount to, BigDecimal amount) {
+        this(actor, Optional.of(Objects.requireNonNull(from, "from")), Optional.of(Objects.requireNonNull(to, "to")), amount);
+    }
+
+    public Transaction(Player actor, Optional<BankAccount> from, Optional<BankAccount> to, BigDecimal amount) {
         this.id = UUID.randomUUID();
         this.actor = Objects.requireNonNull(actor, "actor").getUUID();
-        this.from = Objects.requireNonNull(from, "from").getId();
-        this.to = Objects.requireNonNull(to, "to").getId();
+        this.from = Objects.requireNonNull(from, "from").map(BankAccount::getId);
+        this.to = Objects.requireNonNull(to, "to").map(BankAccount::getId);
         this.amount = Objects.requireNonNull(amount, "amount");
         this.createdAtEpochMs = System.currentTimeMillis();
         this.completedAtEpochMs = null;
@@ -60,7 +64,7 @@ public class Transaction {
         this.completionStarted = new AtomicBoolean(false);
     }
 
-    public Transaction(UUID id, UUID actor, UUID from, UUID to, BigDecimal amount, long createdAtEpochMs, Optional<Long> completedAtEpochMs, Status status) {
+    public Transaction(UUID id, UUID actor, Optional<UUID> from, Optional<UUID> to, BigDecimal amount, long createdAtEpochMs, Optional<Long> completedAtEpochMs, Status status) {
         this.id = Objects.requireNonNull(id, "id");
         this.actor = Objects.requireNonNull(actor, "actor");
         this.from = Objects.requireNonNull(from, "from");
@@ -81,8 +85,8 @@ public class Transaction {
     public static final Codec<Transaction> CODEC = RecordCodecBuilder.create(instance -> instance.group(
         UUIDUtil.STRING_CODEC.fieldOf("id").forGetter(Transaction::getId),
         UUIDUtil.STRING_CODEC.fieldOf("actor").forGetter(Transaction::getActorId),
-        UUIDUtil.STRING_CODEC.fieldOf("from").forGetter(Transaction::getFromId),
-        UUIDUtil.STRING_CODEC.fieldOf("to").forGetter(Transaction::getToId),
+        UUIDUtil.STRING_CODEC.optionalFieldOf("from").forGetter(Transaction::getFromId),
+        UUIDUtil.STRING_CODEC.optionalFieldOf("to").forGetter(Transaction::getToId),
         Codec.STRING.xmap(BigDecimal::new, BigDecimal::toString).fieldOf("amount").forGetter(Transaction::getAmount),
         Codec.LONG.optionalFieldOf("createdAtEpochMs", 0L).forGetter(Transaction::getCreatedAtEpochMs),
         Codec.LONG.optionalFieldOf("completedAtEpochMs").forGetter(Transaction::getCompletedAtEpochMs),
@@ -97,11 +101,11 @@ public class Transaction {
         return id;
     }
 
-    public UUID getFromId() {
+    public Optional<UUID> getFromId() {
         return from;
     }
 
-    public UUID getToId() {
+    public Optional<UUID> getToId() {
         return to;
     }
 

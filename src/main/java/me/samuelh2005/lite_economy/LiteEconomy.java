@@ -1,6 +1,7 @@
 package me.samuelh2005.lite_economy;
 
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -26,10 +27,12 @@ public class LiteEconomy implements ModInitializer {
 	@Override
 	public void onInitialize() {
 		EconomyCommands.register();
+		ServerLifecycleEvents.SERVER_STOPPING.register(server -> TransactionService.stopProcessor());
         ServerWorldEvents.LOAD.register((MinecraftServer server, ServerLevel world) -> {
 			if (world.dimension() != world.getServer().overworld().dimension()) return;
 			LiteEconomy.server = server;
 			levelNBTStorage = world.getDataStorage().computeIfAbsent(LevelNBTStorage.TYPE);
+			TransactionService.startProcessor();
 			TransactionService.loadPendingTransactionsFromStorage();
 			LOGGER.info("Initialized EconomyData for world: " + world.dimension().location());
         });

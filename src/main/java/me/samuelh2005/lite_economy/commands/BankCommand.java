@@ -3,6 +3,7 @@ package me.samuelh2005.lite_economy.commands;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
@@ -252,12 +253,15 @@ public final class BankCommand {
             context.getSource().sendFailure(Component.literal("Bank account not found: " + accountName));
             return 0;
         }
-        if (!TransactionService.deposit(account.get(), amount)) {
-            context.getSource().sendFailure(Component.literal("Deposit failed."));
-            return 0;
-        }
-
-        context.getSource().sendSuccess(() -> Component.literal("Deposited $" + amount + " into '" + account.get().getAccountName() + "'."), true);
+        CommandSourceStack source = context.getSource();
+        String targetAccountName = account.get().getAccountName();
+        submitWithCallback(
+            source,
+            TransactionService.deposit(player, account.get(), amount),
+            () -> Component.literal("Deposited $" + amount + " into '" + targetAccountName + "'."),
+            () -> Component.literal("Deposit failed.")
+        );
+        source.sendSuccess(() -> Component.literal("Deposit queued: $" + amount + " into '" + targetAccountName + "'."), false);
         return 1;
     }
 
@@ -272,11 +276,15 @@ public final class BankCommand {
             context.getSource().sendFailure(Component.literal("Business bank account not found: " + accountName));
             return 0;
         }
-        if (!TransactionService.deposit(account.get(), amount)) {
-            context.getSource().sendFailure(Component.literal("Deposit failed."));
-            return 0;
-        }
-        context.getSource().sendSuccess(() -> Component.literal("Deposited $" + amount + " into '" + account.get().getAccountName() + "'."), true);
+        CommandSourceStack source = context.getSource();
+        String targetAccountName = account.get().getAccountName();
+        submitWithCallback(
+            source,
+            TransactionService.deposit(player, account.get(), amount),
+            () -> Component.literal("Deposited $" + amount + " into '" + targetAccountName + "'."),
+            () -> Component.literal("Deposit failed.")
+        );
+        source.sendSuccess(() -> Component.literal("Deposit queued: $" + amount + " into '" + targetAccountName + "'."), false);
         return 1;
     }
 
@@ -290,12 +298,15 @@ public final class BankCommand {
             context.getSource().sendFailure(Component.literal("Bank account not found: " + accountName));
             return 0;
         }
-        if (!TransactionService.withdraw(account.get(), amount)) {
-            context.getSource().sendFailure(Component.literal("Withdrawal failed. Check your balance."));
-            return 0;
-        }
-
-        context.getSource().sendSuccess(() -> Component.literal("Withdrew $" + amount + " from '" + account.get().getAccountName() + "'."), true);
+        CommandSourceStack source = context.getSource();
+        String targetAccountName = account.get().getAccountName();
+        submitWithCallback(
+            source,
+            TransactionService.withdraw(player, account.get(), amount),
+            () -> Component.literal("Withdrew $" + amount + " from '" + targetAccountName + "'."),
+            () -> Component.literal("Withdrawal failed. Check your balance.")
+        );
+        source.sendSuccess(() -> Component.literal("Withdrawal queued: $" + amount + " from '" + targetAccountName + "'."), false);
         return 1;
     }
 
@@ -310,12 +321,34 @@ public final class BankCommand {
             context.getSource().sendFailure(Component.literal("Business bank account not found: " + accountName));
             return 0;
         }
-        if (!TransactionService.withdraw(account.get(), amount)) {
-            context.getSource().sendFailure(Component.literal("Withdrawal failed. Check your balance."));
-            return 0;
-        }
-        context.getSource().sendSuccess(() -> Component.literal("Withdrew $" + amount + " from '" + account.get().getAccountName() + "'."), true);
+        CommandSourceStack source = context.getSource();
+        String targetAccountName = account.get().getAccountName();
+        submitWithCallback(
+            source,
+            TransactionService.withdraw(player, account.get(), amount),
+            () -> Component.literal("Withdrew $" + amount + " from '" + targetAccountName + "'."),
+            () -> Component.literal("Withdrawal failed. Check your balance.")
+        );
+        source.sendSuccess(() -> Component.literal("Withdrawal queued: $" + amount + " from '" + targetAccountName + "'."), false);
         return 1;
+    }
+
+    private static void submitWithCallback(
+        CommandSourceStack source,
+        java.util.concurrent.CompletionStage<Boolean> completion,
+        Supplier<Component> successMessage,
+        Supplier<Component> failureMessage
+    ) {
+        completion.thenAccept(success -> source.getServer().execute(() -> {
+            if (success) {
+                source.sendSuccess(successMessage, true);
+            } else {
+                source.sendFailure(failureMessage.get());
+            }
+        })).exceptionally(error -> {
+            source.getServer().execute(() -> source.sendFailure(Component.literal("Transaction failed unexpectedly.")));
+            return null;
+        });
     }
 
     private static int renamePlayer(CommandContext<CommandSourceStack> context) {

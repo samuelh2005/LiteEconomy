@@ -56,17 +56,28 @@ public final class TransferCommand {
             return 0;
         }
 
+        CommandSourceStack source = context.getSource();
+        String fromAccountName = from.get().getAccountName();
+        String toAccountName = to.get().getAccountName();
         Transaction transaction = TransactionService.createTransaction(actor, from.get(), to.get(), amount);
-        TransactionService.submitTransaction(transaction);
-        boolean success = TransactionService.completeTransaction(transaction).toCompletableFuture().join();
-        if (!success) {
-            context.getSource().sendFailure(Component.literal("Transfer failed. Check your permissions and balance."));
-            return 0;
-        }
-
-        context.getSource().sendSuccess(
-            () -> Component.literal("Transferred $" + amount + " from '" + from.get().getAccountName() + "' to '" + to.get().getAccountName() + "'."),
-            true
+        TransactionService.submitTransaction(transaction).thenAccept(success ->
+            source.getServer().execute(() -> {
+                if (success) {
+                    source.sendSuccess(
+                        () -> Component.literal("Transferred $" + amount + " from '" + fromAccountName + "' to '" + toAccountName + "'."),
+                        true
+                    );
+                } else {
+                    source.sendFailure(Component.literal("Transfer failed. Check your permissions and balance."));
+                }
+            })
+        ).exceptionally(error -> {
+            source.getServer().execute(() -> source.sendFailure(Component.literal("Transfer failed unexpectedly.")));
+            return null;
+        });
+        source.sendSuccess(
+            () -> Component.literal("Transfer queued: $" + amount + " from '" + fromAccountName + "' to '" + toAccountName + "'."),
+            false
         );
         return 1;
     }
