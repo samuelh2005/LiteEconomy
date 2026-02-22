@@ -1,12 +1,18 @@
 package me.samuelh2005.lite_economy.commands;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 
@@ -15,6 +21,7 @@ import me.samuelh2005.lite_economy.TransactionService;
 import me.samuelh2005.lite_economy.data.AccountOwner;
 import me.samuelh2005.lite_economy.data.BankAccount;
 import me.samuelh2005.lite_economy.data.Business;
+import me.samuelh2005.lite_economy.data.Transaction;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
@@ -22,6 +29,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 public final class BankCommand {
+    private static final int DEFAULT_TRANSACTIONS_PAGE = 1;
+    private static final int DEFAULT_TRANSACTIONS_LIMIT = 5;
+    private static final DateTimeFormatter TRANSACTION_TIME_FORMAT =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z").withZone(ZoneId.systemDefault());
+
     private BankCommand() {
     }
 
@@ -49,6 +61,25 @@ public final class BankCommand {
                         .then(Commands.argument("business", StringArgumentType.string())
                             .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getManageableBusinessNames(getPlayer(context))), builder))
                             .executes(BankCommand::accountsBusiness))))
+                .then(Commands.literal("transactions")
+                    .then(Commands.literal("self")
+                        .then(Commands.argument("account", StringArgumentType.string())
+                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getOwnedAccountNames(getPlayer(context))), builder))
+                            .executes(BankCommand::transactionsSelf)
+                            .then(Commands.argument("page", IntegerArgumentType.integer(1))
+                                .executes(BankCommand::transactionsSelf)
+                                .then(Commands.argument("limit", IntegerArgumentType.integer(1))
+                                    .executes(BankCommand::transactionsSelf)))))
+                    .then(Commands.literal("business")
+                        .then(Commands.argument("business", StringArgumentType.string())
+                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getManageableBusinessNames(getPlayer(context))), builder))
+                            .then(Commands.argument("account", StringArgumentType.string())
+                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getBusinessAccountNames(getPlayer(context), StringArgumentType.getString(context, "business"))), builder))
+                                .executes(BankCommand::transactionsBusiness)
+                                .then(Commands.argument("page", IntegerArgumentType.integer(1))
+                                    .executes(BankCommand::transactionsBusiness)
+                                    .then(Commands.argument("limit", IntegerArgumentType.integer(1))
+                                        .executes(BankCommand::transactionsBusiness)))))))
                 .then(Commands.literal("create")
                     .then(Commands.literal("self")
                         .then(Commands.argument("name", StringArgumentType.string())
@@ -190,6 +221,109 @@ public final class BankCommand {
             );
         }
         return accounts.size();
+    }
+
+    private static int transactionsSelf(CommandContext<CommandSourceStack> context) {
+        ServerPlayer player = getPlayer(context);
+        String accountName = StringArgumentType.getString(context, "account");
+        Optional<BankAccount> account = resolveOwnedAccount(player, accountName);
+        if (account.isEmpty()) {
+            context.getSource().sendFailure(Component.literal("Bank account not found: " + accountName));
+            return 0;
+        }
+
+        int page = getOptionalInt(context, "page", DEFAULT_TRANSACTIONS_PAGE);
+        int limit = getOptionalInt(context, "limit", DEFAULT_TRANSACTIONS_LIMIT);
+        return sendTransactionPage(context.getSource(), account.get(), page, limit, "self");
+    }
+
+    private static int transactionsBusiness(CommandContext<CommandSourceStack> context) {
+        ServerPlayer player = getPlayer(context);
+        String businessName = StringArgumentType.getString(context, "business");
+        String accountName = StringArgumentType.getString(context, "account");
+        Optional<BankAccount> account = resolveManagedBusinessAccount(player, businessName, accountName);
+        if (account.isEmpty()) {
+            context.getSource().sendFailure(Component.literal("Business bank account not found: " + accountName));
+            return 0;
+        }
+
+        int page = getOptionalInt(context, "page", DEFAULT_TRANSACTIONS_PAGE);
+        int limit = getOptionalInt(context, "limit", DEFAULT_TRANSACTIONS_LIMIT);
+        return sendTransactionPage(context.getSource(), account.get(), page, limit, "business=" + businessName);
+    }
+
+    private static int sendTransactionPage(CommandSourceStack source, BankAccount account, int page, int limit, String scopeLabel) {
+        List<Transaction> transactions = LiteEconomy.getDataStorage().getTransactions().values().stream()
+            .filter(transaction -> belongsToAccount(transaction, account.getId()))
+            .sorted(Comparator.comparingLong(Transaction::getCreatedAtEpochMs).reversed().thenComparing(Transaction::getId))
+            .toList();
+
+        if (transactions.isEmpty()) {
+            source.sendFailure(Component.literal("No transactions found for account '" + account.getAccountName() + "'."));
+            return 0;
+        }
+
+        int totalPages = (transactions.size() + limit - 1) / limit;
+        if (page > totalPages) {
+            source.sendFailure(Component.literal("Page out of range. Requested " + page + ", max page is " + totalPages + "."));
+            return 0;
+        }
+
+        int start = (page - 1) * limit;
+        int end = Math.min(start + limit, transactions.size());
+        List<Transaction> selected = transactions.subList(start, end);
+
+        source.sendSuccess(
+            () -> Component.literal(
+                "Transactions for '" + account.getAccountName() + "' (" + scopeLabel + ") "
+                    + "- page " + page + "/" + totalPages
+                    + " - showing " + selected.size() + " of " + transactions.size()
+            ),
+            false
+        );
+        for (Transaction transaction : selected) {
+            source.sendSuccess(() -> Component.literal(formatTransactionLine(account, transaction)), false);
+        }
+        return selected.size();
+    }
+
+    private static boolean belongsToAccount(Transaction transaction, UUID accountId) {
+        return transaction.getFromId().filter(accountId::equals).isPresent()
+            || transaction.getToId().filter(accountId::equals).isPresent();
+    }
+
+    private static String formatTransactionLine(BankAccount account, Transaction transaction) {
+        UUID accountId = account.getId();
+        boolean incoming = transaction.getToId().filter(accountId::equals).isPresent();
+        Optional<UUID> counterpartyId = incoming ? transaction.getFromId() : transaction.getToId();
+        String direction = incoming ? "IN" : "OUT";
+        String counterparty = counterpartyId
+            .map(BankCommand::formatAccountReference)
+            .orElse("(external)");
+
+        return "- [" + direction + "] $" + transaction.getAmount()
+            + " counterparty=" + counterparty
+            + " status=" + transaction.getStatus()
+            + " createdAt=" + formatTimestamp(transaction.getCreatedAtEpochMs())
+            + " txId=" + transaction.getId();
+    }
+
+    private static String formatAccountReference(UUID accountId) {
+        return LiteEconomy.getDataStorage().getBankAccountById(accountId)
+            .map(account -> account.getAccountName() + " (" + account.getId() + ")")
+            .orElse(accountId.toString());
+    }
+
+    private static int getOptionalInt(CommandContext<CommandSourceStack> context, String name, int fallback) {
+        try {
+            return IntegerArgumentType.getInteger(context, name);
+        } catch (IllegalArgumentException ignored) {
+            return fallback;
+        }
+    }
+
+    private static String formatTimestamp(long epochMs) {
+        return TRANSACTION_TIME_FORMAT.format(Instant.ofEpochMilli(epochMs));
     }
 
     private static int createPlayer(CommandContext<CommandSourceStack> context) {
