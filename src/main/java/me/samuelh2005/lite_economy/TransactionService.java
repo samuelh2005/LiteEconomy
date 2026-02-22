@@ -230,7 +230,7 @@ public class TransactionService {
 
     public static void loadPendingTransactionsFromStorage() {
         PENDING_TRANSACTIONS.clear();
-        LiteEconomy.getDataStorage().getTransactions().stream()
+        LiteEconomy.getDataStorage().getTransactions().values().stream()
             .filter(transaction -> transaction.getStatus() == Transaction.Status.PENDING)
             .forEach(transaction -> PENDING_TRANSACTIONS.put(transaction.getId(), transaction));
     }

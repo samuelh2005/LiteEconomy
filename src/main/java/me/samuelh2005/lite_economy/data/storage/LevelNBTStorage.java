@@ -1,13 +1,12 @@
 package me.samuelh2005.lite_economy.data.storage;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Function;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
@@ -18,13 +17,23 @@ import me.samuelh2005.lite_economy.data.Business;
 import me.samuelh2005.lite_economy.data.Transaction;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
+import net.minecraft.core.UUIDUtil;
 
 public class LevelNBTStorage extends SavedData implements DataStorage {
-    public static final Codec<LevelNBTStorage> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-        BankAccount.CODEC.listOf().optionalFieldOf("bankAccounts", List.of()).forGetter(LevelNBTStorage::getBankAccounts),
-        Business.CODEC.listOf().optionalFieldOf("businesses", List.of()).forGetter(LevelNBTStorage::getBusinesses),
-        Transaction.CODEC.listOf().optionalFieldOf("transactions", List.of()).forGetter(LevelNBTStorage::getTransactions)
-    ).apply(instance, LevelNBTStorage::new));
+public static final Codec<LevelNBTStorage> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+    Codec.unboundedMap(UUIDUtil.STRING_CODEC, BankAccount.CODEC)
+        .optionalFieldOf("bankAccounts", Map.of())
+        .forGetter(LevelNBTStorage::getBankAccounts),
+
+    Codec.unboundedMap(UUIDUtil.STRING_CODEC, Business.CODEC)
+        .optionalFieldOf("businesses", Map.of())
+        .forGetter(LevelNBTStorage::getBusinesses),
+
+    Codec.unboundedMap(UUIDUtil.STRING_CODEC, Transaction.CODEC)
+        .optionalFieldOf("transactions", Map.of())
+        .forGetter(LevelNBTStorage::getTransactions)
+
+).apply(instance, LevelNBTStorage::new));
 
     public static final SavedDataType<LevelNBTStorage> TYPE = new SavedDataType<LevelNBTStorage>(
         "economy_data",
@@ -33,30 +42,33 @@ public class LevelNBTStorage extends SavedData implements DataStorage {
         null
     );
 
-    private List<BankAccount> bankAccounts;
-    private List<Business> businesses;
-    private List<Transaction> transactions;
+    private final Map<UUID, BankAccount> bankAccounts;
+    private final Map<UUID, Business> businesses;
+    private final Map<UUID, Transaction> transactions;
 
     private LevelNBTStorage() {
-        this.bankAccounts = new ArrayList<>();
-        this.businesses = new ArrayList<>();
-        this.transactions = new ArrayList<>();
+        this.bankAccounts = new HashMap<>();
+        this.businesses = new HashMap<>();
+        this.transactions = new HashMap<>();
     }
 
-    private LevelNBTStorage(List<BankAccount> bankAccounts, List<Business> businesses, List<Transaction> transactions) {
-        this.bankAccounts = new ArrayList<>(bankAccounts);
-        this.businesses = new ArrayList<>(businesses);
-        this.transactions = new ArrayList<>(transactions);
-        sortTransactionsByTime();
+    private LevelNBTStorage(
+        Map<UUID, BankAccount> bankAccounts,
+        Map<UUID, Business> businesses,
+        Map<UUID, Transaction> transactions
+    ) {
+        this.bankAccounts = new HashMap<>(bankAccounts);
+        this.businesses = new HashMap<>(businesses);
+        this.transactions = new HashMap<>(transactions);
     }
 
-    public List<BankAccount> getBankAccounts() {
+    public Map<UUID, BankAccount> getBankAccounts() {
         return bankAccounts;
     }
 
     @Override
     public List<BankAccount> getBankAccountsByOwner(AccountOwner owner) {
-        return bankAccounts.stream()
+        return bankAccounts.values().stream()
             .filter(account -> {
                 AccountOwner accountOwner = account.getOwner();
                 return accountOwner.getType() == owner.getType() && accountOwner.getId().equals(owner.getId());
@@ -66,7 +78,7 @@ public class LevelNBTStorage extends SavedData implements DataStorage {
 
     @Override
     public Optional<BankAccount> getBankAccountById(UUID id) {
-        return findById(bankAccounts, BankAccount::getId, id);
+        return Optional.ofNullable(bankAccounts.get(id));
     }
 
     @Override
@@ -84,7 +96,7 @@ public class LevelNBTStorage extends SavedData implements DataStorage {
         return Optional.of(account);
     }
 
-    public List<Business> getBusinesses() {
+    public Map<UUID, Business> getBusinesses() {
         return businesses;
     }
 
@@ -104,61 +116,33 @@ public class LevelNBTStorage extends SavedData implements DataStorage {
 
     @Override
     public Optional<Business> getBusinessById(UUID id) {
-        return findById(businesses, Business::getId, id);
+        return Optional.ofNullable(businesses.get(id));
     }
 
-    public List<Transaction> getTransactions() {
+    public Map<UUID, Transaction> getTransactions() {
         return transactions;
     }
 
     @Override
     public Optional<Transaction> getTransactionById(UUID id) {
-        return findById(transactions, Transaction::getId, id);
+        return Optional.ofNullable(transactions.get(id));
     }
 
     @Override
     public void save(BankAccount bankAccount) {
         Objects.requireNonNull(bankAccount, "bankAccount");
-        upsertById(bankAccounts, BankAccount::getId, bankAccount);
         setDirty();
     }
 
     @Override
     public void save(Business business) {
         Objects.requireNonNull(business, "business");
-        upsertById(businesses, Business::getId, business);
         setDirty();
     }
 
     @Override
     public void save(Transaction transaction) {
         Objects.requireNonNull(transaction, "transaction");
-        upsertById(transactions, Transaction::getId, transaction);
-        sortTransactionsByTime();
         setDirty();
-    }
-
-    public void sortTransactionsByTime() {
-        transactions.sort(Comparator
-            .comparingLong(Transaction::getCreatedAtEpochMs)
-            .thenComparing(transaction -> transaction.getCompletedAtEpochMs().orElse(Long.MAX_VALUE))
-            .thenComparing(Transaction::getId));
-    }
-
-    private static <T> Optional<T> findById(List<T> items, Function<T, UUID> idExtractor, UUID id) {
-        return items.stream()
-            .filter(item -> idExtractor.apply(item).equals(id))
-            .findFirst();
-    }
-
-    private static <T> void upsertById(List<T> items, Function<T, UUID> idExtractor, T value) {
-        UUID id = idExtractor.apply(value);
-        for (int i = 0; i < items.size(); i++) {
-            if (idExtractor.apply(items.get(i)).equals(id)) {
-                items.set(i, value);
-                return;
-            }
-        }
-        items.add(value);
     }
 }

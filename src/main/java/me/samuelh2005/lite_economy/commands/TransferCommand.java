@@ -114,7 +114,8 @@ public final class TransferCommand {
 
     private static Optional<BankAccount> resolveUniqueAccount(String accountName) {
         String normalized = accountName.trim();
-        List<BankAccount> matching = LiteEconomy.getDataStorage().getBankAccounts().stream()
+        List<BankAccount> matching = LiteEconomy.getDataStorage().getBankAccounts().values()
+            .stream()
             .filter(account -> account.getAccountName().equalsIgnoreCase(normalized))
             .toList();
         if (matching.size() == 1) {
@@ -140,7 +141,7 @@ public final class TransferCommand {
     }
 
     private static List<String> getAllAccountNames() {
-        return LiteEconomy.getDataStorage().getBankAccounts().stream()
+        return LiteEconomy.getDataStorage().getBankAccounts().values().stream()
             .map(BankAccount::getAccountName)
             .distinct()
             .toList();

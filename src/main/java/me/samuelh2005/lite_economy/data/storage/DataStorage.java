@@ -1,6 +1,7 @@
 package me.samuelh2005.lite_economy.data.storage;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,7 +28,7 @@ public interface DataStorage {
         return createBankAccount(name, AccountOwner.forBusiness(business));
     }
 
-    List<BankAccount> getBankAccounts();
+    Map<UUID, BankAccount> getBankAccounts();
     List<BankAccount> getBankAccountsByOwner(AccountOwner owner);
 
     default List<BankAccount> getBankAccounts(Player owner) {
@@ -48,10 +49,10 @@ public interface DataStorage {
         return createBusiness(name, AccountOwner.forPlayer(owner));
     }
 
-    List<Business> getBusinesses();
+    Map<UUID, Business> getBusinesses();
 
     default List<Business> getBusinesses(Player player) {
-        return getBusinesses().stream()
+        return getBusinesses().values().stream()
             .filter(business -> business.getMembers().stream()
                 .anyMatch(member -> member.getPlayerId().equals(player.getUUID())))
             .toList();
@@ -61,7 +62,7 @@ public interface DataStorage {
 
     // == Transaction Methods ==
 
-    List<Transaction> getTransactions();
+    Map<UUID, Transaction> getTransactions();
     Optional<Transaction> getTransactionById(UUID id);
 
     // == Save Methods ==
