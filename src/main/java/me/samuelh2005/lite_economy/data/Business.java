@@ -2,6 +2,7 @@ package me.samuelh2005.lite_economy.data;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.mojang.serialization.Codec;
@@ -62,6 +63,38 @@ public class Business implements UUIDNameable {
     /** Returns true if this business has at least one member with the OWNER role. */
     public boolean hasOwner() {
         return members.stream().anyMatch(member -> member.getRole() == BusinessMember.Role.OWNER);
+    }
+
+    /**
+     * Returns true if the given player is a member of this business.
+     */
+    public boolean isMember(UUID playerId) {
+        return members.stream().anyMatch(member -> member.getPlayerId().equals(playerId));
+    }
+
+    /**
+     * Gets the role of a player in this business, or empty if not a member.
+     */
+    public Optional<BusinessMember.Role> getMemberRole(UUID playerId) {
+        return members.stream()
+            .filter(member -> member.getPlayerId().equals(playerId))
+            .map(BusinessMember::getRole)
+            .findFirst();
+    }
+
+    /**
+     * Adds a member to this business.
+     */
+    public void addMember(BusinessMember member) {
+        this.members.add(member);
+    }
+
+    /**
+     * Removes a member from this business by their player ID.
+     * @return true if the member was removed, false if not found
+     */
+    public boolean removeMember(UUID playerId) {
+        return members.removeIf(member -> member.getPlayerId().equals(playerId));
     }
 
     public static class BusinessMember {

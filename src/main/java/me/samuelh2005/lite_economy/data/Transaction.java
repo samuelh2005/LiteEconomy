@@ -139,4 +139,26 @@ public class Transaction {
         completionFuture.complete(result);
         return completionFuture;
     }
+
+    /**
+     * Returns true if this transaction involves the given account (either as source or destination).
+     */
+    public boolean involvesAccount(UUID accountId) {
+        return getFromId().filter(accountId::equals).isPresent()
+            || getToId().filter(accountId::equals).isPresent();
+    }
+
+    /**
+     * Returns true if this transaction deposits money INTO the given account (account is the destination).
+     */
+    public boolean isIncoming(UUID accountId) {
+        return getToId().filter(accountId::equals).isPresent();
+    }
+
+    /**
+     * Returns true if this transaction withdraws money FROM the given account (account is the source).
+     */
+    public boolean isOutgoing(UUID accountId) {
+        return getFromId().filter(accountId::equals).isPresent();
+    }
 }

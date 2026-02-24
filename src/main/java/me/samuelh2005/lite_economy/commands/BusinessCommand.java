@@ -1,6 +1,5 @@
 package me.samuelh2005.lite_economy.commands;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -72,11 +71,7 @@ public final class BusinessCommand {
 
         context.getSource().sendSuccess(() -> Component.literal("Your businesses:"), false);
         for (Business business : businesses) {
-            Role role = business.getMembers().stream()
-                .filter(member -> member.getPlayerId().equals(player.getUUID()))
-                .map(BusinessMember::getRole)
-                .findFirst()
-                .orElse(Role.EMPLOYEE);
+            Role role = business.getMemberRole(player.getUUID()).orElse(Role.EMPLOYEE);
             context.getSource().sendSuccess(
                 () -> Component.literal("- " + business.getName() + " | members=" + business.getMembers().size() + " | role=" + role.name().toLowerCase()),
                 false
@@ -107,7 +102,7 @@ public final class BusinessCommand {
         ServerPlayer player = getPlayer(context);
         UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
         Optional<Business> business = LiteEconomy.getInstance().getDataStorage().getBusinessById(businessId);
-        if (business.isEmpty() || business.get().getMembers().stream().noneMatch(m -> m.getPlayerId().equals(player.getUUID()))) {
+        if (business.isEmpty() || !business.get().isMember(player.getUUID())) {
             context.getSource().sendFailure(Component.literal("Business not found or you are not a member."));
             return 0;
         }
@@ -165,15 +160,13 @@ public final class BusinessCommand {
         if (business.isEmpty()) {
             return 0;
         }
-        boolean exists = business.get().getMembers().stream().anyMatch(member -> member.getPlayerId().equals(target.getUUID()));
+        boolean exists = business.get().isMember(target.getUUID());
         if (exists) {
             context.getSource().sendFailure(Component.literal("Player is already in that business."));
             return 0;
         }
 
-        List<BusinessMember> updatedMembers = new ArrayList<>(business.get().getMembers());
-        updatedMembers.add(BusinessMember.forPlayer(target, Role.EMPLOYEE));
-        replaceMembers(business.get(), updatedMembers);
+        business.get().addMember(BusinessMember.forPlayer(target, Role.EMPLOYEE));
         LiteEconomy.getInstance().getDataStorage().save(business.get());
         context.getSource().sendSuccess(() -> Component.literal("Added " + target.getName().getString() + " to " + business.get().getName() + "."), true);
         return 1;
@@ -189,18 +182,16 @@ public final class BusinessCommand {
             return 0;
         }
 
-        List<BusinessMember> updatedMembers = new ArrayList<>(business.get().getMembers());
-        boolean removed = updatedMembers.removeIf(member -> member.getPlayerId().equals(target.getUUID()));
+        boolean removed = business.get().removeMember(target.getUUID());
         if (!removed) {
             context.getSource().sendFailure(Component.literal("That player is not a member of this business."));
             return 0;
         }
-        if (updatedMembers.stream().noneMatch(member -> member.getRole() == Role.OWNER)) {
+        if (!business.get().hasOwner()) {
             context.getSource().sendFailure(Component.literal("Cannot remove the only owner."));
             return 0;
         }
 
-        replaceMembers(business.get(), updatedMembers);
         LiteEconomy.getInstance().getDataStorage().save(business.get());
         context.getSource().sendSuccess(() -> Component.literal("Removed " + target.getName().getString() + " from " + business.get().getName() + "."), true);
         return 1;
@@ -235,11 +226,6 @@ public final class BusinessCommand {
             true
         );
         return 1;
-    }
-
-    private static void replaceMembers(Business business, List<BusinessMember> members) {
-        business.getMembers().clear();
-        business.getMembers().addAll(members);
     }
 
     private static ServerPlayer getPlayer(CommandContext<CommandSourceStack> context) {

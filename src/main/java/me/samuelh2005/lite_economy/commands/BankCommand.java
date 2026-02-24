@@ -114,50 +114,22 @@ public final class BankCommand {
         );
     }
 
+    /**
+     * Gets business accounts for suggestion filtering.
+     * Validates that the business is manageable by the player before returning accounts.
+     */
     private static List<BankAccount> getBusinessAccountsFromContext(CommandContext<CommandSourceStack> ctx, String businessArgName) {
         try {
             UUID businessId = NamedUUIDArgumentType.getUUID(ctx, businessArgName);
-            return LiteEconomy.getInstance().getDataStorage().getBusinessById(businessId)
-                .map(business -> LiteEconomy.getInstance().getDataStorage().getBankAccounts(business))
-                .orElse(List.of());
+            Optional<Business> business = LiteEconomy.getInstance().getDataStorage().getBusinessById(businessId);
+            if (business.isEmpty() || !business.get().isManageableBy(getPlayer(ctx).getUUID())) {
+                return List.of();
+            }
+            return LiteEconomy.getInstance().getDataStorage().getBankAccounts(business.get());
         } catch (IllegalArgumentException ignored) {
             return List.of();
         }
     }
-
-    /**
-     * Resolves a business account from the "business" and "account" arguments, verifying that the
-     * player manages the business and the account belongs to it. Returns empty if any check fails,
-     * and sends the appropriate failure message to the source.
-     * 
-     * @return Optional containing the resolved BankAccount if successful
-     */
-    private static Optional<BankAccount> resolveBusinessAccount(CommandContext<CommandSourceStack> context, ServerPlayer player) {
-        return resolveBusinessAccountWithName(context, player).map(r -> r.account);
-    }
-
-    /**
-     * Resolves a business account and returns both the account and business name.
-     * Returns empty if any check fails, and sends the appropriate failure message to the source.
-     */
-    private static Optional<BusinessAccountResult> resolveBusinessAccountWithName(CommandContext<CommandSourceStack> context, ServerPlayer player) {
-        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
-        UUID accountId = NamedUUIDArgumentType.getUUID(context, "account");
-        Optional<Business> business = LiteEconomy.getInstance().getDataStorage().getBusinessById(businessId);
-        if (business.isEmpty() || !business.get().isManageableBy(player.getUUID())) {
-            context.getSource().sendFailure(Component.literal("Business not found or not manageable."));
-            return Optional.empty();
-        }
-        Optional<BankAccount> account = LiteEconomy.getInstance().getDataStorage().getBankAccountById(accountId);
-        if (account.isEmpty() || !account.get().getOwner().getId().equals(businessId)) {
-            context.getSource().sendFailure(Component.literal("Bank account not found or does not belong to that business."));
-            return Optional.empty();
-        }
-        return Optional.of(new BusinessAccountResult(business.get(), account.get()));
-    }
-
-    /** Simple record to hold a business and its account together */
-    private static record BusinessAccountResult(Business business, BankAccount account) {}
 
     private static int balancePlayer(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
@@ -186,13 +158,32 @@ public final class BankCommand {
     }
 
     /**
-     * Validates that the account exists and is owned by the player. Returns empty if validation fails
-     * and sends failure message.
+     * Validates that the account exists and is owned by the player.
      */
     private static Optional<BankAccount> validatePlayerAccount(CommandContext<CommandSourceStack> context, ServerPlayer player, UUID accountId) {
         Optional<BankAccount> account = LiteEconomy.getInstance().getDataStorage().getBankAccountById(accountId);
-        if (account.isEmpty() || !account.get().getOwner().getId().equals(player.getUUID())) {
+        if (account.isEmpty() || !account.get().isOwnedBy(player.getUUID())) {
             context.getSource().sendFailure(Component.literal(ERR_ACCOUNT_NOT_FOUND_OWNED));
+            return Optional.empty();
+        }
+        return account;
+    }
+
+    /**
+     * Validates that the account exists and belongs to the business.
+     */
+    private static Optional<BankAccount> validateBusinessAccount(CommandContext<CommandSourceStack> context, ServerPlayer player, UUID businessId, UUID accountId) {
+        // First validate the business is manageable
+        Optional<Business> business = LiteEconomy.getInstance().getDataStorage().getBusinessById(businessId);
+        if (business.isEmpty() || !business.get().isManageableBy(player.getUUID())) {
+            context.getSource().sendFailure(Component.literal("Business not found or not manageable."));
+            return Optional.empty();
+        }
+        
+        // Then validate the account belongs to the business
+        Optional<BankAccount> account = LiteEconomy.getInstance().getDataStorage().getBankAccountById(accountId);
+        if (account.isEmpty() || !account.get().isOwnedByBusiness(businessId)) {
+            context.getSource().sendFailure(Component.literal("Bank account not found or does not belong to that business."));
             return Optional.empty();
         }
         return account;
@@ -211,10 +202,14 @@ public final class BankCommand {
 
     private static int balanceBusinessAccount(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        Optional<BankAccount> account = resolveBusinessAccount(context, player);
+        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
+        UUID accountId = NamedUUIDArgumentType.getUUID(context, "account");
+        
+        Optional<BankAccount> account = validateBusinessAccount(context, player, businessId, accountId);
         if (account.isEmpty()) {
             return 0;
         }
+        
         context.getSource().sendSuccess(() -> Component.literal("Business account '" + account.get().getAccountName() + "' balance: $" + account.get().getBalance()), false);
         return 1;
     }
@@ -275,20 +270,22 @@ public final class BankCommand {
 
     private static int transactionsBusiness(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        Optional<BusinessAccountResult> result = resolveBusinessAccountWithName(context, player);
-        if (result.isEmpty()) {
+        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
+        UUID accountId = NamedUUIDArgumentType.getUUID(context, "account");
+        
+        Optional<BankAccount> account = validateBusinessAccount(context, player, businessId, accountId);
+        if (account.isEmpty()) {
             return 0;
         }
 
         int page = getOptionalInt(context, "page", DEFAULT_TRANSACTIONS_PAGE);
         int limit = getOptionalInt(context, "limit", DEFAULT_TRANSACTIONS_LIMIT);
-        String businessName = result.get().business().getName();
-        return sendTransactionPage(context.getSource(), result.get().account(), page, limit, "business=" + businessName);
+        return sendTransactionPage(context.getSource(), account.get(), page, limit, "business");
     }
 
     private static int sendTransactionPage(CommandSourceStack source, BankAccount account, int page, int limit, String scopeLabel) {
         List<Transaction> transactions = LiteEconomy.getInstance().getDataStorage().getTransactions().values().stream()
-            .filter(transaction -> belongsToAccount(transaction, account.getId()))
+            .filter(transaction -> transaction.involvesAccount(account.getId()))
             .sorted(Comparator.comparingLong(Transaction::getCreatedAtEpochMs).reversed().thenComparing(Transaction::getId))
             .toList();
 
@@ -321,14 +318,9 @@ public final class BankCommand {
         return selected.size();
     }
 
-    private static boolean belongsToAccount(Transaction transaction, UUID accountId) {
-        return transaction.getFromId().filter(accountId::equals).isPresent()
-            || transaction.getToId().filter(accountId::equals).isPresent();
-    }
-
     private static String formatTransactionLine(BankAccount account, Transaction transaction) {
         UUID accountId = account.getId();
-        boolean incoming = transaction.getToId().filter(accountId::equals).isPresent();
+        boolean incoming = transaction.isIncoming(accountId);
         Optional<UUID> counterpartyId = incoming ? transaction.getFromId() : transaction.getToId();
         String direction = incoming ? "IN" : "OUT";
         String counterparty = counterpartyId
@@ -423,9 +415,11 @@ public final class BankCommand {
 
     private static int depositBusiness(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
+        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
+        UUID accountId = NamedUUIDArgumentType.getUUID(context, "account");
         BigDecimal amount = BigDecimal.valueOf(DoubleArgumentType.getDouble(context, "amount"));
 
-        Optional<BankAccount> account = resolveBusinessAccount(context, player);
+        Optional<BankAccount> account = validateBusinessAccount(context, player, businessId, accountId);
         if (account.isEmpty()) {
             return 0;
         }
@@ -448,9 +442,11 @@ public final class BankCommand {
 
     private static int withdrawBusiness(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
+        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
+        UUID accountId = NamedUUIDArgumentType.getUUID(context, "account");
         BigDecimal amount = BigDecimal.valueOf(DoubleArgumentType.getDouble(context, "amount"));
 
-        Optional<BankAccount> account = resolveBusinessAccount(context, player);
+        Optional<BankAccount> account = validateBusinessAccount(context, player, businessId, accountId);
         if (account.isEmpty()) {
             return 0;
         }
@@ -520,16 +516,19 @@ public final class BankCommand {
 
     private static int renameBusiness(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
+        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
+        UUID accountId = NamedUUIDArgumentType.getUUID(context, "account");
         String newName = StringArgumentType.getString(context, "name").trim();
         if (newName.isBlank()) {
             context.getSource().sendFailure(Component.literal("New account name cannot be blank."));
             return 0;
         }
 
-        Optional<BankAccount> account = resolveBusinessAccount(context, player);
+        Optional<BankAccount> account = validateBusinessAccount(context, player, businessId, accountId);
         if (account.isEmpty()) {
             return 0;
         }
+
         account.get().setAccountName(newName);
         LiteEconomy.getInstance().getDataStorage().save(account.get());
         context.getSource().sendSuccess(() -> Component.literal("Renamed account to '" + newName + "'."), true);

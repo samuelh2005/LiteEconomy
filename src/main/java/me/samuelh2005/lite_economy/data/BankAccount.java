@@ -67,4 +67,26 @@ public class BankAccount implements UUIDNameable {
     public void setBalance(BigDecimal balance) {
         this.balance = balance.setScale(2, RoundingMode.HALF_UP);
     }
+
+    /**
+     * Returns true if this account is owned by the given player.
+     */
+    public boolean isOwnedBy(UUID playerId) {
+        return owner.getType() == AccountOwner.Type.PLAYER && owner.getId().equals(playerId);
+    }
+
+    /**
+     * Returns true if this account is owned by the given business.
+     */
+    public boolean isOwnedByBusiness(UUID businessId) {
+        return owner.getType() == AccountOwner.Type.BUSINESS && owner.getId().equals(businessId);
+    }
+
+    /**
+     * Returns true if the account is valid for the given business (belongs to it).
+     * This is useful for validating that an account actually belongs to a business.
+     */
+    public boolean belongsToBusiness(UUID businessId) {
+        return isOwnedByBusiness(businessId);
+    }
 }
