@@ -3,13 +3,21 @@ package me.samuelh2005.lite_economy;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+
+import java.util.Optional;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import me.samuelh2005.lite_economy.commands.EconomyCommands;
+import me.samuelh2005.lite_economy.data.AccountOwner;
+import me.samuelh2005.lite_economy.data.BankAccount;
+import me.samuelh2005.lite_economy.data.Transaction;
 import me.samuelh2005.lite_economy.data.storage.DataStorage;
 import me.samuelh2005.lite_economy.data.storage.LevelNBTStorage;
 import me.samuelh2005.lite_economy.services.TransactionService;
@@ -29,7 +37,7 @@ public class LiteEconomy implements ModInitializer {
 	private final TransactionService transactionService;
 
 	public LiteEconomy() {
-		this.transactionService = new TransactionService(this);
+		this.transactionService = new TransactionService(this, this::handleTransactionCompletion);
 		INSTANCE = this;
 	}
 
@@ -67,5 +75,52 @@ public class LiteEconomy implements ModInitializer {
 
 	public static LiteEconomy getInstance() {
 		return INSTANCE;
+	}
+
+	private void handleTransactionCompletion(Transaction transaction, boolean success) {
+		Optional<UUID> fromOpt = transaction.getFromId();
+		Optional<UUID> toOpt = transaction.getToId();
+		if (fromOpt.isEmpty() && toOpt.isEmpty()) {
+			return;
+		}
+		DataStorage dataStorage = getDataStorage();
+		if (fromOpt.isPresent()) {
+			Optional<BankAccount> fromAccountOpt = dataStorage.getBankAccountById(fromOpt.get());
+			if (fromAccountOpt.isPresent()) {
+				BankAccount fromAccount = fromAccountOpt.get();
+				AccountOwner fromOwner = fromAccount.getOwner();
+				AccountOwner.Type fromType = fromOwner.getType();
+				if (fromType == AccountOwner.Type.PLAYER) {
+					UUID playerId = fromOwner.getId();
+					ServerPlayer player = getServer().getPlayerList().getPlayer(playerId);
+					if (player != null) {
+						if (success) {
+							player.sendSystemMessage(Component.literal("Transaction successful: $" + transaction.getAmount() + " withdrawn from '" + fromAccount.getAccountName() + "'."));
+						} else {
+							player.sendSystemMessage(Component.literal("Transaction failed: Could not withdraw $" + transaction.getAmount() + " from '" + fromAccount.getAccountName() + "'."));
+						}
+					};
+				}
+			}
+		}
+		if (toOpt.isPresent()) {
+			Optional<BankAccount> toAccountOpt = dataStorage.getBankAccountById(toOpt.get());
+			if (toAccountOpt.isPresent()) {
+				BankAccount toAccount = toAccountOpt.get();
+				AccountOwner toOwner = toAccount.getOwner();
+				AccountOwner.Type toType = toOwner.getType();
+				if (toType == AccountOwner.Type.PLAYER) {
+					UUID playerId = toOwner.getId();
+					ServerPlayer player = getServer().getPlayerList().getPlayer(playerId);
+					if (player != null) {
+						if (success) {
+							player.sendSystemMessage(Component.literal("Transaction successful: $" + transaction.getAmount() + " deposited into '" + toAccount.getAccountName() + "'."));
+						} else {
+							player.sendSystemMessage(Component.literal("Transaction failed: Could not deposit $" + transaction.getAmount() + " into '" + toAccount.getAccountName() + "'."));
+						}
+					};
+				}
+			}
+		}
 	}
 }

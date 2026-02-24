@@ -8,7 +8,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Supplier;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
@@ -451,42 +450,22 @@ public final class BankCommand {
 
     private static void submitDeposit(CommandSourceStack source, ServerPlayer actor, BankAccount account, BigDecimal amount) {
         String accountName = account.getAccountName();
-        submitWithCallback(
-            source,
-            LiteEconomy.getInstance().getTransactionService().deposit(actor, account, amount),
-            () -> Component.literal("Deposited $" + amount + " into '" + accountName + "'."),
-            () -> Component.literal("Deposit failed.")
-        );
-        source.sendSuccess(() -> Component.literal("Deposit queued: $" + amount + " into '" + accountName + "'."), false);
+        boolean success = LiteEconomy.getInstance().getTransactionService().deposit(actor, account, amount);
+        if (success) {
+            source.sendSuccess(() -> Component.literal("Deposit queued $" + amount + " into '" + accountName + "'."), false);
+        } else {
+            source.sendFailure(Component.literal("Deposit failed. Check the amount and try again."));
+        }
     }
 
     private static void submitWithdrawal(CommandSourceStack source, ServerPlayer actor, BankAccount account, BigDecimal amount) {
         String accountName = account.getAccountName();
-        submitWithCallback(
-            source,
-            LiteEconomy.getInstance().getTransactionService().withdraw(actor, account, amount),
-            () -> Component.literal("Withdrew $" + amount + " from '" + accountName + "'."),
-            () -> Component.literal("Withdrawal failed. Check your balance.")
-        );
-        source.sendSuccess(() -> Component.literal("Withdrawal queued: $" + amount + " from '" + accountName + "'."), false);
-    }
-
-    private static void submitWithCallback(
-        CommandSourceStack source,
-        java.util.concurrent.CompletionStage<Boolean> completion,
-        Supplier<Component> successMessage,
-        Supplier<Component> failureMessage
-    ) {
-        completion.thenAccept(success -> source.getServer().execute(() -> {
-            if (success) {
-                source.sendSuccess(successMessage, true);
-            } else {
-                source.sendFailure(failureMessage.get());
-            }
-        })).exceptionally(error -> {
-            source.getServer().execute(() -> source.sendFailure(Component.literal("Transaction failed unexpectedly.")));
-            return null;
-        });
+        boolean success = LiteEconomy.getInstance().getTransactionService().withdraw(actor, account, amount);
+        if (success) {
+            source.sendSuccess(() -> Component.literal("Withdrawal queued $" + amount + " from '" + accountName + "'."), false);
+        } else {
+            source.sendFailure(Component.literal("Withdrawal failed. Check your balance."));
+        }
     }
 
     private static int renamePlayer(CommandContext<CommandSourceStack> context) {

@@ -5,7 +5,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -24,16 +23,24 @@ public class TransactionService {
     private final LiteEconomy main;
     private final Map<UUID, Transaction> PENDING_TRANSACTIONS = new ConcurrentHashMap<>();
     private final AtomicBoolean PROCESSOR_RUNNING = new AtomicBoolean(false);
+    private final OnTransactionCompleted onTransactionCompleted;
     private volatile Thread processorThread;
 
-    public TransactionService(LiteEconomy main) {
-        this.main = main;
+    @FunctionalInterface
+    public static interface OnTransactionCompleted {
+        void accept(Transaction transaction, boolean success);        
     }
+
+    public TransactionService(LiteEconomy main, OnTransactionCompleted onTransactionCompleted) {
+        this.main = main;
+        this.onTransactionCompleted = onTransactionCompleted;
+    }
+
     public Transaction createTransaction(ServerPlayer actor, BankAccount from, BankAccount to, BigDecimal amount) {
         return new Transaction(actor, from, to, amount);
     }
 
-    public CompletionStage<Boolean> submitTransaction(Transaction transaction) {
+    public boolean submitTransaction(Transaction transaction) {
         DataStorage dataStorage = main.getDataStorage();
         Optional<Transaction> existing = dataStorage.getTransactionById(transaction.getId());
         if (existing.isEmpty()) {
@@ -41,27 +48,27 @@ public class TransactionService {
         }
         final Transaction selectedTransaction = existing.orElse(transaction);
         if (selectedTransaction.getStatus() != Transaction.Status.PENDING) {
-            return selectedTransaction.getCompletionFuture();
+            return true;
         }
 
         Transaction pending = PENDING_TRANSACTIONS.putIfAbsent(selectedTransaction.getId(), selectedTransaction);
         if (pending == null) {
             pending = selectedTransaction;
         }
-        return pending.getCompletionFuture();
+        return true;
     }
 
-    public CompletionStage<Boolean> deposit(ServerPlayer actor, BankAccount account, BigDecimal amount) {
+    public boolean deposit(ServerPlayer actor, BankAccount account, BigDecimal amount) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-            return CompletableFuture.completedFuture(false);
+            return false;
         }
 
         return submitTransaction(new Transaction(actor, Optional.empty(), Optional.of(account), amount));
     }
 
-    public CompletionStage<Boolean> withdraw(ServerPlayer actor, BankAccount account, BigDecimal amount) {
+    public boolean withdraw(ServerPlayer actor, BankAccount account, BigDecimal amount) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-            return CompletableFuture.completedFuture(false);
+            return false;
         }
 
         return submitTransaction(new Transaction(actor, Optional.of(account), Optional.empty(), amount));
@@ -126,6 +133,8 @@ public class TransactionService {
 
     private void processTransaction(Transaction pending) {
         if (pending == null || !pending.beginCompletion()) {
+            // Transaction failed to begin completion, notify callback
+            onTransactionCompleted.accept(pending, false);
             return;
         }
 
@@ -138,8 +147,12 @@ public class TransactionService {
                 main.getDataStorage().save(pending);
                 PENDING_TRANSACTIONS.remove(pending.getId());
                 processingFuture.complete(success);
+                // Notify callback after processing
+                onTransactionCompleted.accept(pending, success);
             } catch (RuntimeException e) {
                 processingFuture.completeExceptionally(e);
+                // Notify callback on exception (failure)
+                onTransactionCompleted.accept(pending, false);
             }
         });
 
@@ -147,6 +160,8 @@ public class TransactionService {
             processingFuture.join();
         } catch (RuntimeException e) {
             LiteEconomy.LOGGER.error("Failed to process transaction {}", pending.getId(), e);
+            // Notify callback on join failure (failure)
+            onTransactionCompleted.accept(pending, false);
         }
     }
 

@@ -57,21 +57,7 @@ public final class PayCommand {
         String fromAccountName = from.get().getAccountName();
         String toAccountName = to.get().getAccountName();
         Transaction transaction = LiteEconomy.getInstance().getTransactionService().createTransaction(actor, from.get(), to.get(), amount);
-        LiteEconomy.getInstance().getTransactionService().submitTransaction(transaction).thenAccept(success ->
-            source.getServer().execute(() -> {
-                if (success) {
-                    source.sendSuccess(
-                        () -> Component.literal("Transferred $" + amount + " from '" + fromAccountName + "' to '" + toAccountName + "'."),
-                        true
-                    );
-                } else {
-                    source.sendFailure(Component.literal("Transfer failed. Check your permissions and balance."));
-                }
-            })
-        ).exceptionally(error -> {
-            source.getServer().execute(() -> source.sendFailure(Component.literal("Transfer failed unexpectedly.")));
-            return null;
-        });
+        LiteEconomy.getInstance().getTransactionService().submitTransaction(transaction);
         source.sendSuccess(
             () -> Component.literal("Transfer queued: $" + amount + " from '" + fromAccountName + "' to '" + toAccountName + "'."),
             false

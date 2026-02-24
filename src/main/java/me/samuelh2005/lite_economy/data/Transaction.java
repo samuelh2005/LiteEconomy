@@ -40,6 +40,7 @@ public class Transaction {
     private final UUID actor;
     private final Optional<UUID> from;
     private final Optional<UUID> to;
+    private final Optional<String> location;
     private final BigDecimal amount;
     private final long createdAtEpochMs;
     private Long completedAtEpochMs;
@@ -52,27 +53,24 @@ public class Transaction {
     }
 
     public Transaction(Player actor, Optional<BankAccount> from, Optional<BankAccount> to, BigDecimal amount) {
-        this.id = UUID.randomUUID();
-        this.actor = Objects.requireNonNull(actor, "actor").getUUID();
-        this.from = Objects.requireNonNull(from, "from").map(BankAccount::getId);
-        this.to = Objects.requireNonNull(to, "to").map(BankAccount::getId);
-        this.amount = Objects.requireNonNull(amount, "amount");
-        this.createdAtEpochMs = System.currentTimeMillis();
-        this.completedAtEpochMs = null;
-        this.status = Status.PENDING;
-        this.completionFuture = new CompletableFuture<>();
-        this.completionStarted = new AtomicBoolean(false);
+        this(UUID.randomUUID(), actor.getUUID(), from.map(BankAccount::getId), to.map(BankAccount::getId), amount, System.currentTimeMillis(), Optional.empty(), Status.PENDING);
     }
 
     public Transaction(UUID id, UUID actor, Optional<UUID> from, Optional<UUID> to, BigDecimal amount, long createdAtEpochMs, Optional<Long> completedAtEpochMs, Status status) {
-        this.id = Objects.requireNonNull(id, "id");
-        this.actor = Objects.requireNonNull(actor, "actor");
-        this.from = Objects.requireNonNull(from, "from");
-        this.to = Objects.requireNonNull(to, "to");
-        this.amount = Objects.requireNonNull(amount, "amount");
+        this(id, actor, from, to, amount, createdAtEpochMs, completedAtEpochMs, status, Optional.empty());
+    }
+
+    public Transaction(UUID id, UUID actor, Optional<UUID> from, Optional<UUID> to, BigDecimal amount,
+            long createdAtEpochMs, Optional<Long> completedAtEpochMs, Status status, Optional<String> location) {
+        this.id = id;
+        this.actor = actor;
+        this.from = from;
+        this.to = to;
+        this.location = location;
+        this.amount = amount;
         this.createdAtEpochMs = createdAtEpochMs;
         this.completedAtEpochMs = completedAtEpochMs.orElse(null);
-        this.status = Objects.requireNonNull(status, "status");
+        this.status = status;
         this.completionFuture = new CompletableFuture<>();
         this.completionStarted = new AtomicBoolean(status != Status.PENDING);
         if (status == Status.COMPLETED_SUCCESS) {
@@ -90,7 +88,8 @@ public class Transaction {
         Codec.STRING.xmap(BigDecimal::new, BigDecimal::toString).fieldOf("amount").forGetter(Transaction::getAmount),
         Codec.LONG.optionalFieldOf("createdAtEpochMs", 0L).forGetter(Transaction::getCreatedAtEpochMs),
         Codec.LONG.optionalFieldOf("completedAtEpochMs").forGetter(Transaction::getCompletedAtEpochMs),
-        Status.CODEC.optionalFieldOf("status", Status.PENDING).forGetter(Transaction::getStatus)
+        Status.CODEC.optionalFieldOf("status", Status.PENDING).forGetter(Transaction::getStatus),
+        Codec.STRING.optionalFieldOf("location").forGetter(Transaction::getLocation)
     ).apply(instance, Transaction::new));
 
     public UUID getActorId() {
@@ -123,6 +122,10 @@ public class Transaction {
 
     public Status getStatus() {
         return status;
+    }
+
+    public Optional<String> getLocation() {
+        return location;
     }
 
     public CompletionStage<Boolean> getCompletionFuture() {
