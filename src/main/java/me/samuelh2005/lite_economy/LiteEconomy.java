@@ -20,6 +20,7 @@ import me.samuelh2005.lite_economy.data.BankAccount;
 import me.samuelh2005.lite_economy.data.Transaction;
 import me.samuelh2005.lite_economy.data.storage.DataStorage;
 import me.samuelh2005.lite_economy.data.storage.LevelNBTStorage;
+import me.samuelh2005.lite_economy.services.HTTPService;
 import me.samuelh2005.lite_economy.services.TransactionService;
 
 public class LiteEconomy implements ModInitializer {
@@ -35,22 +36,28 @@ public class LiteEconomy implements ModInitializer {
 	private LevelNBTStorage levelNBTStorage;
 	private MinecraftServer server;
 	private final TransactionService transactionService;
+	private final HTTPService httpService;
 
 	public LiteEconomy() {
 		this.transactionService = new TransactionService(this, this::handleTransactionCompletion);
+		this.httpService = new HTTPService(this);
 		INSTANCE = this;
 	}
 
 	@Override
 	public void onInitialize() {
 		EconomyCommands.register(this);
-		ServerLifecycleEvents.SERVER_STOPPING.register(server -> transactionService.stopProcessor());
+		ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+			transactionService.stopProcessor();
+			httpService.stop();
+		});
         ServerWorldEvents.LOAD.register((MinecraftServer server, ServerLevel world) -> {
 			if (world.dimension() != world.getServer().overworld().dimension()) return;
 			this.server = server;
 			levelNBTStorage = world.getDataStorage().computeIfAbsent(LevelNBTStorage.TYPE);
 			transactionService.startProcessor();
 			transactionService.loadPendingTransactionsFromStorage();
+			httpService.start();
 			LOGGER.info("Initialized EconomyData for world: " + world.dimension().location());
         });
 	}
