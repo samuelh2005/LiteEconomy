@@ -1,4 +1,4 @@
-package me.samuelh2005.lite_economy;
+package me.samuelh2005.lite_economy.services;
 
 import java.math.BigDecimal;
 import java.util.Map;
@@ -18,17 +18,23 @@ import me.samuelh2005.lite_economy.data.storage.DataStorage;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
-public class TransactionService {
-    private static final Map<UUID, Transaction> PENDING_TRANSACTIONS = new ConcurrentHashMap<>();
-    private static final AtomicBoolean PROCESSOR_RUNNING = new AtomicBoolean(false);
-    private static volatile Thread processorThread;
+import me.samuelh2005.lite_economy.LiteEconomy;
 
-    public static Transaction createTransaction(ServerPlayer actor, BankAccount from, BankAccount to, BigDecimal amount) {
+public class TransactionService {
+    private final LiteEconomy main;
+    private final Map<UUID, Transaction> PENDING_TRANSACTIONS = new ConcurrentHashMap<>();
+    private final AtomicBoolean PROCESSOR_RUNNING = new AtomicBoolean(false);
+    private volatile Thread processorThread;
+
+    public TransactionService(LiteEconomy main) {
+        this.main = main;
+    }
+    public Transaction createTransaction(ServerPlayer actor, BankAccount from, BankAccount to, BigDecimal amount) {
         return new Transaction(actor, from, to, amount);
     }
 
-    public static CompletionStage<Boolean> submitTransaction(Transaction transaction) {
-        DataStorage dataStorage = LiteEconomy.getDataStorage();
+    public CompletionStage<Boolean> submitTransaction(Transaction transaction) {
+        DataStorage dataStorage = main.getDataStorage();
         Optional<Transaction> existing = dataStorage.getTransactionById(transaction.getId());
         if (existing.isEmpty()) {
             dataStorage.save(transaction);
@@ -45,7 +51,7 @@ public class TransactionService {
         return pending.getCompletionFuture();
     }
 
-    public static CompletionStage<Boolean> deposit(ServerPlayer actor, BankAccount account, BigDecimal amount) {
+    public CompletionStage<Boolean> deposit(ServerPlayer actor, BankAccount account, BigDecimal amount) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             return CompletableFuture.completedFuture(false);
         }
@@ -53,7 +59,7 @@ public class TransactionService {
         return submitTransaction(new Transaction(actor, Optional.empty(), Optional.of(account), amount));
     }
 
-    public static CompletionStage<Boolean> withdraw(ServerPlayer actor, BankAccount account, BigDecimal amount) {
+    public CompletionStage<Boolean> withdraw(ServerPlayer actor, BankAccount account, BigDecimal amount) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             return CompletableFuture.completedFuture(false);
         }
@@ -61,7 +67,7 @@ public class TransactionService {
         return submitTransaction(new Transaction(actor, Optional.of(account), Optional.empty(), amount));
     }
 
-    public static synchronized void startProcessor() {
+    public synchronized void startProcessor() {
         if (PROCESSOR_RUNNING.get()) {
             return;
         }
@@ -69,10 +75,10 @@ public class TransactionService {
         processorThread = Thread.ofPlatform()
             .name("LiteEconomy-TransactionProcessor")
             .daemon(true)
-            .start(TransactionService::runProcessorLoop);
+            .start(this::runProcessorLoop);
     }
 
-    public static synchronized void stopProcessor() {
+    public synchronized void stopProcessor() {
         PROCESSOR_RUNNING.set(false);
         Thread thread = processorThread;
         if (thread == null) {
@@ -88,7 +94,7 @@ public class TransactionService {
         }
     }
 
-    private static void runProcessorLoop() {
+    private void runProcessorLoop() {
         while (PROCESSOR_RUNNING.get()) {
             if (!processNextTransaction()) {
                 try {
@@ -103,7 +109,7 @@ public class TransactionService {
         }
     }
 
-    private static boolean processNextTransaction() {
+    private boolean processNextTransaction() {
         Optional<Transaction> next = PENDING_TRANSACTIONS.values().stream()
             .filter(transaction -> transaction.getStatus() == Transaction.Status.PENDING)
             .min(java.util.Comparator
@@ -118,18 +124,18 @@ public class TransactionService {
         return true;
     }
 
-    private static void processTransaction(Transaction pending) {
+    private void processTransaction(Transaction pending) {
         if (pending == null || !pending.beginCompletion()) {
             return;
         }
 
-        MinecraftServer server = LiteEconomy.getServer();
+        MinecraftServer server = main.getServer();
         CompletableFuture<Boolean> processingFuture = new CompletableFuture<>();
         server.execute(() -> {
             try {
                 boolean success = applyTransaction(pending);
                 pending.completeWith(success);
-                LiteEconomy.getDataStorage().save(pending);
+                main.getDataStorage().save(pending);
                 PENDING_TRANSACTIONS.remove(pending.getId());
                 processingFuture.complete(success);
             } catch (RuntimeException e) {
@@ -144,7 +150,7 @@ public class TransactionService {
         }
     }
 
-    private static boolean applyTransaction(Transaction transaction) {
+    private boolean applyTransaction(Transaction transaction) {
         UUID actorId = transaction.getActorId();
         Optional<UUID> fromIdOpt = transaction.getFromId();
         Optional<UUID> toIdOpt = transaction.getToId();
@@ -153,7 +159,7 @@ public class TransactionService {
             return false;
         }
 
-        DataStorage dataStorage = LiteEconomy.getDataStorage();
+        DataStorage dataStorage = main.getDataStorage();
         BigDecimal amount = transaction.getAmount();
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             return false;
@@ -203,28 +209,28 @@ public class TransactionService {
         return true;
     }
 
-    private static boolean canTransfer(UUID actorId, BankAccount from, BigDecimal amount) {
+    private boolean canTransfer(UUID actorId, BankAccount from, BigDecimal amount) {
         if (from.getBalance().compareTo(amount) < 0) {
             return false;
         }
         return canWithdraw(actorId, from);
     }
 
-    private static boolean canWithdraw(UUID actorId, BankAccount from) {
+    private boolean canWithdraw(UUID actorId, BankAccount from) {
         AccountOwner owner = from.getOwner();
         if (owner.getType() == AccountOwner.Type.PLAYER) {
             return owner.getId().equals(actorId);
         }
         if (owner.getType() == AccountOwner.Type.BUSINESS) {
-            Optional<Business> business = LiteEconomy.getDataStorage().getBusinessById(owner.getId());
+            Optional<Business> business = main.getDataStorage().getBusinessById(owner.getId());
             return business.isPresent() && business.get().isManageableBy(actorId);
         }
         return false;
     }
 
-    public static void loadPendingTransactionsFromStorage() {
+    public void loadPendingTransactionsFromStorage() {
         PENDING_TRANSACTIONS.clear();
-        LiteEconomy.getDataStorage().getTransactions().values().stream()
+        main.getDataStorage().getTransactions().values().stream()
             .filter(transaction -> transaction.getStatus() == Transaction.Status.PENDING)
             .forEach(transaction -> PENDING_TRANSACTIONS.put(transaction.getId(), transaction));
     }

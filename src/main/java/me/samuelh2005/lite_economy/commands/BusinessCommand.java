@@ -37,24 +37,24 @@ public final class BusinessCommand {
                     .then(Commands.argument("name", StringArgumentType.string())
                         .executes(BusinessCommand::create)))
                 .then(Commands.literal("info")
-                    .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getBusinesses(getPlayer(ctx))))
+                    .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getBusinesses(getPlayer(ctx))))
                         .executes(BusinessCommand::info)))
                 .then(Commands.literal("rename")
-                    .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getManageableBusinesses(getPlayer(ctx))))
+                    .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
                         .then(Commands.argument("new_name", StringArgumentType.string())
                             .executes(BusinessCommand::rename))))
                 .then(Commands.literal("member")
                     .then(Commands.literal("add")
-                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getManageableBusinesses(getPlayer(ctx))))
+                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
                             .then(Commands.argument("player", EntityArgument.player())
                                 .executes(BusinessCommand::addMember))))
                     .then(Commands.literal("remove")
-                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getManageableBusinesses(getPlayer(ctx))))
+                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
                             .then(Commands.argument("player", EntityArgument.player())
                                 .executes(BusinessCommand::removeMember))))
                     .then(Commands.literal("role")
                         .then(Commands.literal("set")
-                            .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getManageableBusinesses(getPlayer(ctx))))
+                            .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
                                 .then(Commands.argument("player", EntityArgument.player())
                                     .then(Commands.literal("owner").executes(context -> setRole(context, Role.OWNER)))
                                     .then(Commands.literal("manager").executes(context -> setRole(context, Role.MANAGER)))
@@ -64,7 +64,7 @@ public final class BusinessCommand {
 
     private static int list(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        List<Business> businesses = LiteEconomy.getDataStorage().getBusinesses(player);
+        List<Business> businesses = LiteEconomy.getInstance().getDataStorage().getBusinesses(player);
         if (businesses.isEmpty()) {
             context.getSource().sendFailure(Component.literal("You are not in any businesses."));
             return 0;
@@ -93,7 +93,7 @@ public final class BusinessCommand {
             return 0;
         }
 
-        Optional<Business> created = LiteEconomy.getDataStorage().createBusiness(name, AccountOwner.forPlayer(player));
+        Optional<Business> created = LiteEconomy.getInstance().getDataStorage().createBusiness(name, AccountOwner.forPlayer(player));
         if (created.isEmpty()) {
             context.getSource().sendFailure(Component.literal("Could not create business."));
             return 0;
@@ -106,7 +106,7 @@ public final class BusinessCommand {
     private static int info(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
         UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
-        Optional<Business> business = LiteEconomy.getDataStorage().getBusinessById(businessId);
+        Optional<Business> business = LiteEconomy.getInstance().getDataStorage().getBusinessById(businessId);
         if (business.isEmpty() || business.get().getMembers().stream().noneMatch(m -> m.getPlayerId().equals(player.getUUID()))) {
             context.getSource().sendFailure(Component.literal("Business not found or you are not a member."));
             return 0;
@@ -114,7 +114,7 @@ public final class BusinessCommand {
 
         context.getSource().sendSuccess(() -> Component.literal("Business: " + business.get().getName()), false);
         for (BusinessMember member : business.get().getMembers()) {
-            String playerName = Optional.ofNullable(LiteEconomy.getServer().getPlayerList().getPlayer(member.getPlayerId()))
+            String playerName = Optional.ofNullable(LiteEconomy.getInstance().getServer().getPlayerList().getPlayer(member.getPlayerId()))
                 .map(found -> found.getName().getString())
                 .orElse(member.getPlayerId().toString());
             context.getSource().sendSuccess(() -> Component.literal("- " + playerName + " : " + member.getRole().name().toLowerCase()), false);
@@ -131,14 +131,14 @@ public final class BusinessCommand {
             return 0;
         }
 
-        Optional<Business> business = LiteEconomy.getDataStorage().getBusinessById(businessId);
+        Optional<Business> business = LiteEconomy.getInstance().getDataStorage().getBusinessById(businessId);
         if (business.isEmpty() || !business.get().isManageableBy(player.getUUID())) {
             context.getSource().sendFailure(Component.literal("Business not found or you do not have permission to rename it."));
             return 0;
         }
 
         business.get().setName(newName);
-        LiteEconomy.getDataStorage().save(business.get());
+        LiteEconomy.getInstance().getDataStorage().save(business.get());
         context.getSource().sendSuccess(() -> Component.literal("Business renamed to '" + newName + "'."), true);
         return 1;
     }
@@ -148,7 +148,7 @@ public final class BusinessCommand {
      * and sends failure message.
      */
     private static Optional<Business> validateManageableBusiness(CommandContext<CommandSourceStack> context, ServerPlayer actor, UUID businessId) {
-        Optional<Business> business = LiteEconomy.getDataStorage().getBusinessById(businessId);
+        Optional<Business> business = LiteEconomy.getInstance().getDataStorage().getBusinessById(businessId);
         if (business.isEmpty() || !business.get().isManageableBy(actor.getUUID())) {
             context.getSource().sendFailure(Component.literal(ERR_BUSINESS_NOT_FOUND_MANAGEABLE));
             return Optional.empty();
@@ -174,7 +174,7 @@ public final class BusinessCommand {
         List<BusinessMember> updatedMembers = new ArrayList<>(business.get().getMembers());
         updatedMembers.add(BusinessMember.forPlayer(target, Role.EMPLOYEE));
         replaceMembers(business.get(), updatedMembers);
-        LiteEconomy.getDataStorage().save(business.get());
+        LiteEconomy.getInstance().getDataStorage().save(business.get());
         context.getSource().sendSuccess(() -> Component.literal("Added " + target.getName().getString() + " to " + business.get().getName() + "."), true);
         return 1;
     }
@@ -201,7 +201,7 @@ public final class BusinessCommand {
         }
 
         replaceMembers(business.get(), updatedMembers);
-        LiteEconomy.getDataStorage().save(business.get());
+        LiteEconomy.getInstance().getDataStorage().save(business.get());
         context.getSource().sendSuccess(() -> Component.literal("Removed " + target.getName().getString() + " from " + business.get().getName() + "."), true);
         return 1;
     }
@@ -229,7 +229,7 @@ public final class BusinessCommand {
             context.getSource().sendFailure(Component.literal("Business must always have at least one owner."));
             return 0;
         }
-        LiteEconomy.getDataStorage().save(business.get());
+        LiteEconomy.getInstance().getDataStorage().save(business.get());
         context.getSource().sendSuccess(
             () -> Component.literal("Set role for " + target.getName().getString() + " to " + role.name().toLowerCase() + "."),
             true

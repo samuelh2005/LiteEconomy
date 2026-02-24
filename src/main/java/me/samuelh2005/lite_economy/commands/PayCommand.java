@@ -9,7 +9,6 @@ import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 
 import me.samuelh2005.lite_economy.LiteEconomy;
-import me.samuelh2005.lite_economy.TransactionService;
 import me.samuelh2005.lite_economy.commands.arguments.NamedUUIDArgumentType;
 import me.samuelh2005.lite_economy.data.BankAccount;
 import me.samuelh2005.lite_economy.data.Transaction;
@@ -25,8 +24,8 @@ public final class PayCommand {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("pay")
             .requires(source -> source.getEntity() instanceof ServerPlayer)
-            .then(Commands.argument("from_account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getWithdrawableAccounts(getPlayer(ctx))))
-                .then(Commands.argument("to_account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getBankAccounts().values().stream().toList()))
+            .then(Commands.argument("from_account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getWithdrawableAccounts(getPlayer(ctx))))
+                .then(Commands.argument("to_account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getBankAccounts().values().stream().toList()))
                     .then(Commands.argument("amount", DoubleArgumentType.doubleArg(0.01D))
                         .executes(PayCommand::transfer)))));
     }
@@ -37,12 +36,12 @@ public final class PayCommand {
         UUID toId = NamedUUIDArgumentType.getUUID(context, "to_account");
         BigDecimal amount = BigDecimal.valueOf(DoubleArgumentType.getDouble(context, "amount"));
 
-        Optional<BankAccount> from = LiteEconomy.getDataStorage().getBankAccountById(fromId);
+        Optional<BankAccount> from = LiteEconomy.getInstance().getDataStorage().getBankAccountById(fromId);
         if (from.isEmpty()) {
             context.getSource().sendFailure(Component.literal("Source account not found."));
             return 0;
         }
-        Optional<BankAccount> to = LiteEconomy.getDataStorage().getBankAccountById(toId);
+        Optional<BankAccount> to = LiteEconomy.getInstance().getDataStorage().getBankAccountById(toId);
         if (to.isEmpty()) {
             context.getSource().sendFailure(Component.literal("Destination account not found."));
             return 0;
@@ -55,8 +54,8 @@ public final class PayCommand {
         CommandSourceStack source = context.getSource();
         String fromAccountName = from.get().getAccountName();
         String toAccountName = to.get().getAccountName();
-        Transaction transaction = TransactionService.createTransaction(actor, from.get(), to.get(), amount);
-        TransactionService.submitTransaction(transaction).thenAccept(success ->
+        Transaction transaction = LiteEconomy.getInstance().getTransactionService().createTransaction(actor, from.get(), to.get(), amount);
+        LiteEconomy.getInstance().getTransactionService().submitTransaction(transaction).thenAccept(success ->
             source.getServer().execute(() -> {
                 if (success) {
                     source.sendSuccess(

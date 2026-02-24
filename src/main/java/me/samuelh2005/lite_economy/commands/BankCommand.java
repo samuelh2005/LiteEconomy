@@ -17,7 +17,6 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 
 import me.samuelh2005.lite_economy.LiteEconomy;
-import me.samuelh2005.lite_economy.TransactionService;
 import me.samuelh2005.lite_economy.commands.arguments.NamedUUIDArgumentType;
 import me.samuelh2005.lite_economy.data.AccountOwner;
 import me.samuelh2005.lite_economy.data.BankAccount;
@@ -46,28 +45,28 @@ public final class BankCommand {
                 .then(Commands.literal("balance")
                     .then(Commands.literal("self")
                         .executes(BankCommand::balancePlayer)
-                        .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getBankAccounts(getPlayer(ctx))))
+                        .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getBankAccounts(getPlayer(ctx))))
                             .executes(BankCommand::balancePlayerAccount)))
                     .then(Commands.literal("business")
-                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getManageableBusinesses(getPlayer(ctx))))
+                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
                             .executes(BankCommand::balanceBusiness)
                             .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> getBusinessAccountsFromContext(ctx, "business")))
                                 .executes(BankCommand::balanceBusinessAccount)))))
                 .then(Commands.literal("accounts")
                     .then(Commands.literal("self").executes(BankCommand::accountsPlayer))
                     .then(Commands.literal("business")
-                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getManageableBusinesses(getPlayer(ctx))))
+                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
                             .executes(BankCommand::accountsBusiness))))
                 .then(Commands.literal("transactions")
                     .then(Commands.literal("self")
-                        .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getBankAccounts(getPlayer(ctx))))
+                        .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getBankAccounts(getPlayer(ctx))))
                             .executes(BankCommand::transactionsSelf)
                             .then(Commands.argument("page", IntegerArgumentType.integer(1))
                                 .executes(BankCommand::transactionsSelf)
                                 .then(Commands.argument("limit", IntegerArgumentType.integer(1))
                                     .executes(BankCommand::transactionsSelf)))))
                     .then(Commands.literal("business")
-                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getManageableBusinesses(getPlayer(ctx))))
+                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
                             .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> getBusinessAccountsFromContext(ctx, "business")))
                                 .executes(BankCommand::transactionsBusiness)
                                 .then(Commands.argument("page", IntegerArgumentType.integer(1))
@@ -79,36 +78,36 @@ public final class BankCommand {
                         .then(Commands.argument("name", StringArgumentType.string())
                             .executes(BankCommand::createPlayer)))
                     .then(Commands.literal("business")
-                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getManageableBusinesses(getPlayer(ctx))))
+                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
                             .then(Commands.argument("name", StringArgumentType.string())
                                 .executes(BankCommand::createBusiness)))))
                 .then(Commands.literal("deposit")
                     .then(Commands.literal("self")
-                        .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getBankAccounts(getPlayer(ctx))))
+                        .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getBankAccounts(getPlayer(ctx))))
                             .then(Commands.argument("amount", DoubleArgumentType.doubleArg(0.01D))
                                 .executes(BankCommand::depositPlayer))))
                     .then(Commands.literal("business")
-                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getManageableBusinesses(getPlayer(ctx))))
+                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
                             .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> getBusinessAccountsFromContext(ctx, "business")))
                                 .then(Commands.argument("amount", DoubleArgumentType.doubleArg(0.01D))
                                     .executes(BankCommand::depositBusiness))))))
                 .then(Commands.literal("withdraw")
                     .then(Commands.literal("self")
-                        .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getBankAccounts(getPlayer(ctx))))
+                        .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getBankAccounts(getPlayer(ctx))))
                             .then(Commands.argument("amount", DoubleArgumentType.doubleArg(0.01D))
                                 .executes(BankCommand::withdrawPlayer))))
                     .then(Commands.literal("business")
-                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getManageableBusinesses(getPlayer(ctx))))
+                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
                             .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> getBusinessAccountsFromContext(ctx, "business")))
                                 .then(Commands.argument("amount", DoubleArgumentType.doubleArg(0.01D))
                                     .executes(BankCommand::withdrawBusiness))))))
                 .then(Commands.literal("rename")
                     .then(Commands.literal("self")
-                        .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getBankAccounts(getPlayer(ctx))))
+                        .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getBankAccounts(getPlayer(ctx))))
                             .then(Commands.argument("name", StringArgumentType.string())
                                 .executes(BankCommand::renamePlayer))))
                     .then(Commands.literal("business")
-                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getManageableBusinesses(getPlayer(ctx))))
+                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
                             .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> getBusinessAccountsFromContext(ctx, "business")))
                                 .then(Commands.argument("name", StringArgumentType.string())
                                     .executes(BankCommand::renameBusiness))))))
@@ -118,8 +117,8 @@ public final class BankCommand {
     private static List<BankAccount> getBusinessAccountsFromContext(CommandContext<CommandSourceStack> ctx, String businessArgName) {
         try {
             UUID businessId = NamedUUIDArgumentType.getUUID(ctx, businessArgName);
-            return LiteEconomy.getDataStorage().getBusinessById(businessId)
-                .map(business -> LiteEconomy.getDataStorage().getBankAccounts(business))
+            return LiteEconomy.getInstance().getDataStorage().getBusinessById(businessId)
+                .map(business -> LiteEconomy.getInstance().getDataStorage().getBankAccounts(business))
                 .orElse(List.of());
         } catch (IllegalArgumentException ignored) {
             return List.of();
@@ -144,12 +143,12 @@ public final class BankCommand {
     private static Optional<BusinessAccountResult> resolveBusinessAccountWithName(CommandContext<CommandSourceStack> context, ServerPlayer player) {
         UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
         UUID accountId = NamedUUIDArgumentType.getUUID(context, "account");
-        Optional<Business> business = LiteEconomy.getDataStorage().getBusinessById(businessId);
+        Optional<Business> business = LiteEconomy.getInstance().getDataStorage().getBusinessById(businessId);
         if (business.isEmpty() || !business.get().isManageableBy(player.getUUID())) {
             context.getSource().sendFailure(Component.literal("Business not found or not manageable."));
             return Optional.empty();
         }
-        Optional<BankAccount> account = LiteEconomy.getDataStorage().getBankAccountById(accountId);
+        Optional<BankAccount> account = LiteEconomy.getInstance().getDataStorage().getBankAccountById(accountId);
         if (account.isEmpty() || !account.get().getOwner().getId().equals(businessId)) {
             context.getSource().sendFailure(Component.literal("Bank account not found or does not belong to that business."));
             return Optional.empty();
@@ -162,7 +161,7 @@ public final class BankCommand {
 
     private static int balancePlayer(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        List<BankAccount> accounts = LiteEconomy.getDataStorage().getBankAccounts(player);
+        List<BankAccount> accounts = LiteEconomy.getInstance().getDataStorage().getBankAccounts(player);
         BigDecimal total = accounts.stream()
             .map(BankAccount::getBalance)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -173,12 +172,12 @@ public final class BankCommand {
     private static int balanceBusiness(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
         UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
-        Optional<Business> business = LiteEconomy.getDataStorage().getBusinessById(businessId);
+        Optional<Business> business = LiteEconomy.getInstance().getDataStorage().getBusinessById(businessId);
         if (business.isEmpty() || !business.get().isManageableBy(player.getUUID())) {
             context.getSource().sendFailure(Component.literal("Business not found or not manageable."));
             return 0;
         }
-        List<BankAccount> accounts = LiteEconomy.getDataStorage().getBankAccounts(business.get());
+        List<BankAccount> accounts = LiteEconomy.getInstance().getDataStorage().getBankAccounts(business.get());
         BigDecimal total = accounts.stream()
             .map(BankAccount::getBalance)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -191,7 +190,7 @@ public final class BankCommand {
      * and sends failure message.
      */
     private static Optional<BankAccount> validatePlayerAccount(CommandContext<CommandSourceStack> context, ServerPlayer player, UUID accountId) {
-        Optional<BankAccount> account = LiteEconomy.getDataStorage().getBankAccountById(accountId);
+        Optional<BankAccount> account = LiteEconomy.getInstance().getDataStorage().getBankAccountById(accountId);
         if (account.isEmpty() || !account.get().getOwner().getId().equals(player.getUUID())) {
             context.getSource().sendFailure(Component.literal(ERR_ACCOUNT_NOT_FOUND_OWNED));
             return Optional.empty();
@@ -222,7 +221,7 @@ public final class BankCommand {
 
     private static int accountsPlayer(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        List<BankAccount> accounts = LiteEconomy.getDataStorage().getBankAccounts(player);
+        List<BankAccount> accounts = LiteEconomy.getInstance().getDataStorage().getBankAccounts(player);
         if (accounts.isEmpty()) {
             context.getSource().sendFailure(Component.literal("You do not have any bank accounts yet."));
             return 0;
@@ -241,12 +240,12 @@ public final class BankCommand {
     private static int accountsBusiness(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
         UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
-        Optional<Business> business = LiteEconomy.getDataStorage().getBusinessById(businessId);
+        Optional<Business> business = LiteEconomy.getInstance().getDataStorage().getBusinessById(businessId);
         if (business.isEmpty() || !business.get().isManageableBy(player.getUUID())) {
             context.getSource().sendFailure(Component.literal("Business not found or not manageable."));
             return 0;
         }
-        List<BankAccount> accounts = LiteEconomy.getDataStorage().getBankAccounts(business.get());
+        List<BankAccount> accounts = LiteEconomy.getInstance().getDataStorage().getBankAccounts(business.get());
         if (accounts.isEmpty()) {
             context.getSource().sendFailure(Component.literal("No bank accounts for that business."));
             return 0;
@@ -288,7 +287,7 @@ public final class BankCommand {
     }
 
     private static int sendTransactionPage(CommandSourceStack source, BankAccount account, int page, int limit, String scopeLabel) {
-        List<Transaction> transactions = LiteEconomy.getDataStorage().getTransactions().values().stream()
+        List<Transaction> transactions = LiteEconomy.getInstance().getDataStorage().getTransactions().values().stream()
             .filter(transaction -> belongsToAccount(transaction, account.getId()))
             .sorted(Comparator.comparingLong(Transaction::getCreatedAtEpochMs).reversed().thenComparing(Transaction::getId))
             .toList();
@@ -344,7 +343,7 @@ public final class BankCommand {
     }
 
     private static String formatAccountReference(UUID accountId) {
-        return LiteEconomy.getDataStorage().getBankAccountById(accountId)
+        return LiteEconomy.getInstance().getDataStorage().getBankAccountById(accountId)
             .map(account -> account.getAccountName() + " (" + account.getId() + ")")
             .orElse(accountId.toString());
     }
@@ -369,7 +368,7 @@ public final class BankCommand {
             return 0;
         }
 
-        Optional<BankAccount> account = LiteEconomy.getDataStorage().createBankAccount(accountName, AccountOwner.forPlayer(player));
+        Optional<BankAccount> account = LiteEconomy.getInstance().getDataStorage().createBankAccount(accountName, AccountOwner.forPlayer(player));
         if (account.isEmpty()) {
             context.getSource().sendFailure(Component.literal("Could not create bank account."));
             return 0;
@@ -391,12 +390,12 @@ public final class BankCommand {
             return 0;
         }
 
-        Optional<Business> business = LiteEconomy.getDataStorage().getBusinessById(businessId);
+        Optional<Business> business = LiteEconomy.getInstance().getDataStorage().getBusinessById(businessId);
         if (business.isEmpty() || !business.get().isManageableBy(player.getUUID())) {
             context.getSource().sendFailure(Component.literal("Business not found or not manageable."));
             return 0;
         }
-        Optional<BankAccount> account = LiteEconomy.getDataStorage().createBankAccount(accountName, AccountOwner.forBusiness(business.get()));
+        Optional<BankAccount> account = LiteEconomy.getInstance().getDataStorage().createBankAccount(accountName, AccountOwner.forBusiness(business.get()));
         if (account.isEmpty()) {
             context.getSource().sendFailure(Component.literal("Could not create bank account."));
             return 0;
@@ -463,7 +462,7 @@ public final class BankCommand {
         String accountName = account.getAccountName();
         submitWithCallback(
             source,
-            TransactionService.deposit(actor, account, amount),
+            LiteEconomy.getInstance().getTransactionService().deposit(actor, account, amount),
             () -> Component.literal("Deposited $" + amount + " into '" + accountName + "'."),
             () -> Component.literal("Deposit failed.")
         );
@@ -474,7 +473,7 @@ public final class BankCommand {
         String accountName = account.getAccountName();
         submitWithCallback(
             source,
-            TransactionService.withdraw(actor, account, amount),
+            LiteEconomy.getInstance().getTransactionService().withdraw(actor, account, amount),
             () -> Component.literal("Withdrew $" + amount + " from '" + accountName + "'."),
             () -> Component.literal("Withdrawal failed. Check your balance.")
         );
@@ -514,7 +513,7 @@ public final class BankCommand {
         }
 
         account.get().setAccountName(newName);
-        LiteEconomy.getDataStorage().save(account.get());
+        LiteEconomy.getInstance().getDataStorage().save(account.get());
         context.getSource().sendSuccess(() -> Component.literal("Renamed account to '" + newName + "'."), true);
         return 1;
     }
@@ -532,7 +531,7 @@ public final class BankCommand {
             return 0;
         }
         account.get().setAccountName(newName);
-        LiteEconomy.getDataStorage().save(account.get());
+        LiteEconomy.getInstance().getDataStorage().save(account.get());
         context.getSource().sendSuccess(() -> Component.literal("Renamed account to '" + newName + "'."), true);
         return 1;
     }

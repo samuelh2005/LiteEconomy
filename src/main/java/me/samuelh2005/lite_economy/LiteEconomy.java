@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import me.samuelh2005.lite_economy.commands.EconomyCommands;
 import me.samuelh2005.lite_economy.data.storage.DataStorage;
 import me.samuelh2005.lite_economy.data.storage.LevelNBTStorage;
+import me.samuelh2005.lite_economy.services.TransactionService;
 
 public class LiteEconomy implements ModInitializer {
 	public static final String MOD_ID = "lite_economy";
@@ -21,34 +22,50 @@ public class LiteEconomy implements ModInitializer {
 	// That way, it's clear which mod wrote info, warnings, and errors.
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-	private static LevelNBTStorage levelNBTStorage;
-	private static MinecraftServer server;
+	private static LiteEconomy INSTANCE;
+
+	private LevelNBTStorage levelNBTStorage;
+	private MinecraftServer server;
+	private final TransactionService transactionService;
+
+	public LiteEconomy() {
+		this.transactionService = new TransactionService(this);
+		INSTANCE = this;
+	}
 
 	@Override
 	public void onInitialize() {
-		EconomyCommands.register();
-		ServerLifecycleEvents.SERVER_STOPPING.register(server -> TransactionService.stopProcessor());
+		EconomyCommands.register(this);
+		ServerLifecycleEvents.SERVER_STOPPING.register(server -> transactionService.stopProcessor());
         ServerWorldEvents.LOAD.register((MinecraftServer server, ServerLevel world) -> {
 			if (world.dimension() != world.getServer().overworld().dimension()) return;
-			LiteEconomy.server = server;
+			this.server = server;
 			levelNBTStorage = world.getDataStorage().computeIfAbsent(LevelNBTStorage.TYPE);
-			TransactionService.startProcessor();
-			TransactionService.loadPendingTransactionsFromStorage();
+			transactionService.startProcessor();
+			transactionService.loadPendingTransactionsFromStorage();
 			LOGGER.info("Initialized EconomyData for world: " + world.dimension().location());
         });
 	}
 
-	public static MinecraftServer getServer() {
+	public MinecraftServer getServer() {
 		if (server == null) {
 			throw new IllegalStateException("Minecraft server has not been initialized yet!");
 		}
 		return server;
 	}
 
-	public static DataStorage getDataStorage() {
+	public DataStorage getDataStorage() {
 		if (levelNBTStorage == null) {
 			throw new IllegalStateException("Economy data storage has not been initialized yet!");
 		}
 		return levelNBTStorage;
+	}
+
+	public TransactionService getTransactionService() {
+		return transactionService;
+	}
+
+	public static LiteEconomy getInstance() {
+		return INSTANCE;
 	}
 }
