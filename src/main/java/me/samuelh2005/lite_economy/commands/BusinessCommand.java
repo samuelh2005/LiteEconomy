@@ -10,7 +10,6 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 
 import me.samuelh2005.lite_economy.LiteEconomy;
-import me.samuelh2005.lite_economy.commands.arguments.NamedUUIDArgumentType;
 import me.samuelh2005.lite_economy.data.AccountOwner;
 import me.samuelh2005.lite_economy.data.Business;
 import me.samuelh2005.lite_economy.data.Business.BusinessMember;
@@ -18,6 +17,7 @@ import me.samuelh2005.lite_economy.data.Business.BusinessMember.Role;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
+import net.minecraft.commands.arguments.UuidArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -36,24 +36,29 @@ public final class BusinessCommand {
                     .then(Commands.argument("name", StringArgumentType.string())
                         .executes(BusinessCommand::create)))
                 .then(Commands.literal("info")
-                    .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getBusinesses(getPlayer(ctx))))
+                    .then(Commands.argument("business", UuidArgument.uuid())
+                        .suggests(SuggestionHelpers.BUSINESSES)
                         .executes(BusinessCommand::info)))
                 .then(Commands.literal("rename")
-                    .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
+                    .then(Commands.argument("business", UuidArgument.uuid())
+                        .suggests(SuggestionHelpers.MANAGABLE_BUSINESSES)
                         .then(Commands.argument("new_name", StringArgumentType.string())
                             .executes(BusinessCommand::rename))))
                 .then(Commands.literal("member")
                     .then(Commands.literal("add")
-                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
+                        .then(Commands.argument("business", UuidArgument.uuid())
+                            .suggests(SuggestionHelpers.MANAGABLE_BUSINESSES)
                             .then(Commands.argument("player", EntityArgument.player())
                                 .executes(BusinessCommand::addMember))))
                     .then(Commands.literal("remove")
-                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
+                        .then(Commands.argument("business", UuidArgument.uuid())
+                            .suggests(SuggestionHelpers.MANAGABLE_BUSINESSES)
                             .then(Commands.argument("player", EntityArgument.player())
                                 .executes(BusinessCommand::removeMember))))
                     .then(Commands.literal("role")
                         .then(Commands.literal("set")
-                            .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
+                            .then(Commands.argument("business", UuidArgument.uuid())
+                                .suggests(SuggestionHelpers.MANAGABLE_BUSINESSES)
                                 .then(Commands.argument("player", EntityArgument.player())
                                     .then(Commands.literal("owner").executes(context -> setRole(context, Role.OWNER)))
                                     .then(Commands.literal("manager").executes(context -> setRole(context, Role.MANAGER)))
@@ -100,7 +105,7 @@ public final class BusinessCommand {
 
     private static int info(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
+        UUID businessId = UuidArgument.getUuid(context, "business");
         Optional<Business> business = LiteEconomy.getInstance().getDataStorage().getBusinessById(businessId);
         if (business.isEmpty() || !business.get().isMember(player.getUUID())) {
             context.getSource().sendFailure(Component.literal("Business not found or you are not a member."));
@@ -119,7 +124,7 @@ public final class BusinessCommand {
 
     private static int rename(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
+        UUID businessId = UuidArgument.getUuid(context, "business");
         String newName = StringArgumentType.getString(context, "new_name").trim();
         if (newName.isBlank()) {
             context.getSource().sendFailure(Component.literal("New business name cannot be blank."));
@@ -154,7 +159,7 @@ public final class BusinessCommand {
     private static int addMember(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         ServerPlayer actor = getPlayer(context);
         ServerPlayer target = EntityArgument.getPlayer(context, "player");
-        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
+        UUID businessId = UuidArgument.getUuid(context, "business");
 
         Optional<Business> business = validateManageableBusiness(context, actor, businessId);
         if (business.isEmpty()) {
@@ -175,7 +180,7 @@ public final class BusinessCommand {
     private static int removeMember(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         ServerPlayer actor = getPlayer(context);
         ServerPlayer target = EntityArgument.getPlayer(context, "player");
-        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
+        UUID businessId = UuidArgument.getUuid(context, "business");
 
         Optional<Business> business = validateManageableBusiness(context, actor, businessId);
         if (business.isEmpty()) {
@@ -200,7 +205,7 @@ public final class BusinessCommand {
     private static int setRole(CommandContext<CommandSourceStack> context, Role role) throws CommandSyntaxException {
         ServerPlayer actor = getPlayer(context);
         ServerPlayer target = EntityArgument.getPlayer(context, "player");
-        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
+        UUID businessId = UuidArgument.getUuid(context, "business");
 
         Optional<Business> business = validateManageableBusiness(context, actor, businessId);
         if (business.isEmpty()) {

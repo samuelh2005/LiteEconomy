@@ -17,13 +17,13 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 
 import me.samuelh2005.lite_economy.LiteEconomy;
-import me.samuelh2005.lite_economy.commands.arguments.NamedUUIDArgumentType;
 import me.samuelh2005.lite_economy.data.AccountOwner;
 import me.samuelh2005.lite_economy.data.BankAccount;
 import me.samuelh2005.lite_economy.data.Business;
 import me.samuelh2005.lite_economy.data.Transaction;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.UuidArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -45,29 +45,34 @@ public final class BankCommand {
                 .then(Commands.literal("balance")
                     .then(Commands.literal("self")
                         .executes(BankCommand::balancePlayer)
-                        .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getBankAccounts(getPlayer(ctx))))
+                        .then(Commands.argument("account", UuidArgument.uuid())
+                            .suggests(SuggestionHelpers.BANK_ACCOUNTS)
                             .executes(BankCommand::balancePlayerAccount)))
                     .then(Commands.literal("business")
-                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
+                        .then(Commands.argument("business", UuidArgument.uuid())
+                            .suggests(SuggestionHelpers.MANAGABLE_BUSINESSES)
                             .executes(BankCommand::balanceBusiness)
-                            .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> getBusinessAccountsFromContext(ctx, "business")))
+                            .then(Commands.argument("account", UuidArgument.uuid())
                                 .executes(BankCommand::balanceBusinessAccount)))))
                 .then(Commands.literal("accounts")
                     .then(Commands.literal("self").executes(BankCommand::accountsPlayer))
                     .then(Commands.literal("business")
-                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
+                        .then(Commands.argument("business", UuidArgument.uuid())
+                            .suggests(SuggestionHelpers.MANAGABLE_BUSINESSES)
                             .executes(BankCommand::accountsBusiness))))
                 .then(Commands.literal("transactions")
                     .then(Commands.literal("self")
-                        .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getBankAccounts(getPlayer(ctx))))
+                        .then(Commands.argument("account", UuidArgument.uuid())
+                            .suggests(SuggestionHelpers.BANK_ACCOUNTS)
                             .executes(BankCommand::transactionsSelf)
                             .then(Commands.argument("page", IntegerArgumentType.integer(1))
                                 .executes(BankCommand::transactionsSelf)
                                 .then(Commands.argument("limit", IntegerArgumentType.integer(1))
                                     .executes(BankCommand::transactionsSelf)))))
                     .then(Commands.literal("business")
-                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
-                            .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> getBusinessAccountsFromContext(ctx, "business")))
+                        .then(Commands.argument("business", UuidArgument.uuid())
+                            .suggests(SuggestionHelpers.MANAGABLE_BUSINESSES)
+                            .then(Commands.argument("account", UuidArgument.uuid())
                                 .executes(BankCommand::transactionsBusiness)
                                 .then(Commands.argument("page", IntegerArgumentType.integer(1))
                                     .executes(BankCommand::transactionsBusiness)
@@ -78,57 +83,47 @@ public final class BankCommand {
                         .then(Commands.argument("name", StringArgumentType.string())
                             .executes(BankCommand::createPlayer)))
                     .then(Commands.literal("business")
-                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
+                        .then(Commands.argument("business", UuidArgument.uuid())
+                            .suggests(SuggestionHelpers.MANAGABLE_BUSINESSES)
                             .then(Commands.argument("name", StringArgumentType.string())
                                 .executes(BankCommand::createBusiness)))))
                 .then(Commands.literal("deposit")
                     .then(Commands.literal("self")
-                        .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getBankAccounts(getPlayer(ctx))))
+                        .then(Commands.argument("account", UuidArgument.uuid())
+                            .suggests(SuggestionHelpers.BANK_ACCOUNTS)
                             .then(Commands.argument("amount", DoubleArgumentType.doubleArg(0.01D))
                                 .executes(BankCommand::depositPlayer))))
                     .then(Commands.literal("business")
-                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
-                            .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> getBusinessAccountsFromContext(ctx, "business")))
+                        .then(Commands.argument("business", UuidArgument.uuid())
+                            .suggests(SuggestionHelpers.MANAGABLE_BUSINESSES)
+                            .then(Commands.argument("account", UuidArgument.uuid())
                                 .then(Commands.argument("amount", DoubleArgumentType.doubleArg(0.01D))
                                     .executes(BankCommand::depositBusiness))))))
                 .then(Commands.literal("withdraw")
                     .then(Commands.literal("self")
-                        .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getBankAccounts(getPlayer(ctx))))
+                        .then(Commands.argument("account", UuidArgument.uuid())
+                            .suggests(SuggestionHelpers.BANK_ACCOUNTS)
                             .then(Commands.argument("amount", DoubleArgumentType.doubleArg(0.01D))
                                 .executes(BankCommand::withdrawPlayer))))
                     .then(Commands.literal("business")
-                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
-                            .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> getBusinessAccountsFromContext(ctx, "business")))
+                        .then(Commands.argument("business", UuidArgument.uuid())
+                            .suggests(SuggestionHelpers.MANAGABLE_BUSINESSES)
+                            .then(Commands.argument("account", UuidArgument.uuid())
                                 .then(Commands.argument("amount", DoubleArgumentType.doubleArg(0.01D))
                                     .executes(BankCommand::withdrawBusiness))))))
                 .then(Commands.literal("rename")
                     .then(Commands.literal("self")
-                        .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getBankAccounts(getPlayer(ctx))))
+                        .then(Commands.argument("account", UuidArgument.uuid())
+                            .suggests(SuggestionHelpers.BANK_ACCOUNTS)
                             .then(Commands.argument("name", StringArgumentType.string())
                                 .executes(BankCommand::renamePlayer))))
                     .then(Commands.literal("business")
-                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getManageableBusinesses(getPlayer(ctx))))
-                            .then(Commands.argument("account", NamedUUIDArgumentType.namedUUID(ctx -> getBusinessAccountsFromContext(ctx, "business")))
+                        .then(Commands.argument("business", UuidArgument.uuid())
+                            .suggests(SuggestionHelpers.MANAGABLE_BUSINESSES)
+                            .then(Commands.argument("account", UuidArgument.uuid())
                                 .then(Commands.argument("name", StringArgumentType.string())
                                     .executes(BankCommand::renameBusiness))))))
         );
-    }
-
-    /**
-     * Gets business accounts for suggestion filtering.
-     * Validates that the business is manageable by the player before returning accounts.
-     */
-    private static List<BankAccount> getBusinessAccountsFromContext(CommandContext<CommandSourceStack> ctx, String businessArgName) {
-        try {
-            UUID businessId = NamedUUIDArgumentType.getUUID(ctx, businessArgName);
-            Optional<Business> business = LiteEconomy.getInstance().getDataStorage().getBusinessById(businessId);
-            if (business.isEmpty() || !business.get().isManageableBy(getPlayer(ctx).getUUID())) {
-                return List.of();
-            }
-            return LiteEconomy.getInstance().getDataStorage().getBankAccounts(business.get());
-        } catch (IllegalArgumentException ignored) {
-            return List.of();
-        }
     }
 
     private static int balancePlayer(CommandContext<CommandSourceStack> context) {
@@ -143,7 +138,7 @@ public final class BankCommand {
 
     private static int balanceBusiness(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
+        UUID businessId = UuidArgument.getUuid(context, "business");
         Optional<Business> business = LiteEconomy.getInstance().getDataStorage().getBusinessById(businessId);
         if (business.isEmpty() || !business.get().isManageableBy(player.getUUID())) {
             context.getSource().sendFailure(Component.literal("Business not found or not manageable."));
@@ -191,7 +186,7 @@ public final class BankCommand {
 
     private static int balancePlayerAccount(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        UUID accountId = NamedUUIDArgumentType.getUUID(context, "account");
+        UUID accountId = UuidArgument.getUuid(context, "account");
         Optional<BankAccount> account = validatePlayerAccount(context, player, accountId);
         if (account.isEmpty()) {
             return 0;
@@ -202,8 +197,8 @@ public final class BankCommand {
 
     private static int balanceBusinessAccount(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
-        UUID accountId = NamedUUIDArgumentType.getUUID(context, "account");
+        UUID businessId = UuidArgument.getUuid(context, "business");
+        UUID accountId = UuidArgument.getUuid(context, "account");
         
         Optional<BankAccount> account = validateBusinessAccount(context, player, businessId, accountId);
         if (account.isEmpty()) {
@@ -234,7 +229,7 @@ public final class BankCommand {
 
     private static int accountsBusiness(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
+        UUID businessId = UuidArgument.getUuid(context, "business");
         Optional<Business> business = LiteEconomy.getInstance().getDataStorage().getBusinessById(businessId);
         if (business.isEmpty() || !business.get().isManageableBy(player.getUUID())) {
             context.getSource().sendFailure(Component.literal("Business not found or not manageable."));
@@ -257,7 +252,7 @@ public final class BankCommand {
 
     private static int transactionsSelf(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        UUID accountId = NamedUUIDArgumentType.getUUID(context, "account");
+        UUID accountId = UuidArgument.getUuid(context, "account");
         Optional<BankAccount> account = validatePlayerAccount(context, player, accountId);
         if (account.isEmpty()) {
             return 0;
@@ -270,8 +265,8 @@ public final class BankCommand {
 
     private static int transactionsBusiness(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
-        UUID accountId = NamedUUIDArgumentType.getUUID(context, "account");
+        UUID businessId = UuidArgument.getUuid(context, "business");
+        UUID accountId = UuidArgument.getUuid(context, "account");
         
         Optional<BankAccount> account = validateBusinessAccount(context, player, businessId, accountId);
         if (account.isEmpty()) {
@@ -375,7 +370,7 @@ public final class BankCommand {
 
     private static int createBusiness(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
+        UUID businessId = UuidArgument.getUuid(context, "business");
         String accountName = StringArgumentType.getString(context, "name").trim();
         if (accountName.isBlank()) {
             context.getSource().sendFailure(Component.literal("Account name cannot be blank."));
@@ -402,7 +397,7 @@ public final class BankCommand {
 
     private static int depositPlayer(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        UUID accountId = NamedUUIDArgumentType.getUUID(context, "account");
+        UUID accountId = UuidArgument.getUuid(context, "account");
         BigDecimal amount = BigDecimal.valueOf(DoubleArgumentType.getDouble(context, "amount"));
 
         Optional<BankAccount> account = validatePlayerAccount(context, player, accountId);
@@ -415,8 +410,8 @@ public final class BankCommand {
 
     private static int depositBusiness(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
-        UUID accountId = NamedUUIDArgumentType.getUUID(context, "account");
+        UUID businessId = UuidArgument.getUuid(context, "business");
+        UUID accountId = UuidArgument.getUuid(context, "account");
         BigDecimal amount = BigDecimal.valueOf(DoubleArgumentType.getDouble(context, "amount"));
 
         Optional<BankAccount> account = validateBusinessAccount(context, player, businessId, accountId);
@@ -429,7 +424,7 @@ public final class BankCommand {
 
     private static int withdrawPlayer(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        UUID accountId = NamedUUIDArgumentType.getUUID(context, "account");
+        UUID accountId = UuidArgument.getUuid(context, "account");
         BigDecimal amount = BigDecimal.valueOf(DoubleArgumentType.getDouble(context, "amount"));
 
         Optional<BankAccount> account = validatePlayerAccount(context, player, accountId);
@@ -442,8 +437,8 @@ public final class BankCommand {
 
     private static int withdrawBusiness(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
-        UUID accountId = NamedUUIDArgumentType.getUUID(context, "account");
+        UUID businessId = UuidArgument.getUuid(context, "business");
+        UUID accountId = UuidArgument.getUuid(context, "account");
         BigDecimal amount = BigDecimal.valueOf(DoubleArgumentType.getDouble(context, "amount"));
 
         Optional<BankAccount> account = validateBusinessAccount(context, player, businessId, accountId);
@@ -496,7 +491,7 @@ public final class BankCommand {
 
     private static int renamePlayer(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        UUID accountId = NamedUUIDArgumentType.getUUID(context, "account");
+        UUID accountId = UuidArgument.getUuid(context, "account");
         String newName = StringArgumentType.getString(context, "name").trim();
         if (newName.isBlank()) {
             context.getSource().sendFailure(Component.literal("New account name cannot be blank."));
@@ -516,8 +511,8 @@ public final class BankCommand {
 
     private static int renameBusiness(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
-        UUID accountId = NamedUUIDArgumentType.getUUID(context, "account");
+        UUID businessId = UuidArgument.getUuid(context, "business");
+        UUID accountId = UuidArgument.getUuid(context, "account");
         String newName = StringArgumentType.getString(context, "name").trim();
         if (newName.isBlank()) {
             context.getSource().sendFailure(Component.literal("New account name cannot be blank."));

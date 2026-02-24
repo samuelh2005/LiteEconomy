@@ -9,11 +9,11 @@ import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 
 import me.samuelh2005.lite_economy.LiteEconomy;
-import me.samuelh2005.lite_economy.commands.arguments.NamedUUIDArgumentType;
 import me.samuelh2005.lite_economy.data.BankAccount;
 import me.samuelh2005.lite_economy.data.Transaction;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.UuidArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -24,16 +24,18 @@ public final class PayCommand {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("pay")
             .requires(source -> source.getEntity() instanceof ServerPlayer)
-            .then(Commands.argument("from_account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getWithdrawableAccounts(getPlayer(ctx))))
-                .then(Commands.argument("to_account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getInstance().getDataStorage().getBankAccounts().values().stream().toList()))
+            .then(Commands.argument("from_account", UuidArgument.uuid())
+                .suggests(SuggestionHelpers.WITHDRAWABLE_ACCOUNTS)
+                .then(Commands.argument("to_account", UuidArgument.uuid())
+                    .suggests(SuggestionHelpers.ALL_BANK_ACCOUNTS)
                     .then(Commands.argument("amount", DoubleArgumentType.doubleArg(0.01D))
                         .executes(PayCommand::transfer)))));
     }
 
     private static int transfer(CommandContext<CommandSourceStack> context) {
         ServerPlayer actor = getPlayer(context);
-        UUID fromId = NamedUUIDArgumentType.getUUID(context, "from_account");
-        UUID toId = NamedUUIDArgumentType.getUUID(context, "to_account");
+        UUID fromId = UuidArgument.getUuid(context, "from_account");
+        UUID toId = UuidArgument.getUuid(context, "to_account");
         BigDecimal amount = BigDecimal.valueOf(DoubleArgumentType.getDouble(context, "amount"));
 
         Optional<BankAccount> from = LiteEconomy.getInstance().getDataStorage().getBankAccountById(fromId);

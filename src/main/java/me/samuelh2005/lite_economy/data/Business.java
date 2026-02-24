@@ -8,11 +8,10 @@ import java.util.UUID;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
-import me.samuelh2005.lite_economy.commands.arguments.UUIDNameable;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.world.entity.player.Player;
 
-public class Business implements UUIDNameable {
+public class Business {
     private final UUID id;
     private String name;
     private List<BusinessMember> members;
@@ -35,11 +34,6 @@ public class Business implements UUIDNameable {
 
     public List<BusinessMember> getMembers() {
         return members;
-    }
-
-    @Override
-    public String getDisplayName() {
-        return name;
     }
 
     public String getName() {
