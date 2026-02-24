@@ -12,51 +12,32 @@ import me.samuelh2005.lite_economy.data.Transaction;
 import net.minecraft.world.entity.player.Player;
 
 public interface DataStorage {
-    // == Bank Accounts Methods ==
+    // == Bank Account Methods ==
 
     Optional<BankAccount> createBankAccount(String accountName, AccountOwner owner, double initialBalance);
-
-    default Optional<BankAccount> createBankAccount(String accountName, AccountOwner owner) {
-        return createBankAccount(accountName, owner, 0);
-    }
-
-    default Optional<BankAccount> createBankAccount(String name, Player owner) {
-        return createBankAccount(name, AccountOwner.forPlayer(owner));
-    }
-
-    default Optional<BankAccount> createBankAccount(String name, Business business) {
-        return createBankAccount(name, AccountOwner.forBusiness(business));
-    }
+    Optional<BankAccount> createBankAccount(String accountName, AccountOwner owner);
+    Optional<BankAccount> createBankAccount(String name, Player owner);
+    Optional<BankAccount> createBankAccount(String name, Business business);
 
     Map<UUID, BankAccount> getBankAccounts();
     List<BankAccount> getBankAccountsByOwner(AccountOwner owner);
-
-    default List<BankAccount> getBankAccounts(Player owner) {
-        return getBankAccountsByOwner(AccountOwner.forPlayer(owner));
-    }
-
-    default List<BankAccount> getBankAccounts(Business business) {
-        return getBankAccountsByOwner(AccountOwner.forBusiness(business));
-    }
-
+    List<BankAccount> getBankAccounts(Player owner);
+    List<BankAccount> getBankAccounts(Business business);
     Optional<BankAccount> getBankAccountById(UUID id);
 
     // == Business Methods ==
 
     Optional<Business> createBusiness(String name, AccountOwner owner);
-
-    default Optional<Business> createBusiness(String name, Player owner) {
-        return createBusiness(name, AccountOwner.forPlayer(owner));
-    }
+    Optional<Business> createBusiness(String name, Player owner);
 
     Map<UUID, Business> getBusinesses();
+    List<Business> getBusinesses(Player player);
 
-    default List<Business> getBusinesses(Player player) {
-        return getBusinesses().values().stream()
-            .filter(business -> business.getMembers().stream()
-                .anyMatch(member -> member.getPlayerId().equals(player.getUUID())))
-            .toList();
-    }
+    /** Returns all businesses where the player is an OWNER or MANAGER. */
+    List<Business> getManageableBusinesses(Player player);
+
+    /** Returns all bank accounts the player can withdraw from (own accounts + manageable business accounts). */
+    List<BankAccount> getWithdrawableAccounts(Player player);
 
     Optional<Business> getBusinessById(UUID id);
 

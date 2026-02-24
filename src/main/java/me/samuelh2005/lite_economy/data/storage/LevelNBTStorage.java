@@ -1,6 +1,7 @@
 package me.samuelh2005.lite_economy.data.storage;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,7 @@ import me.samuelh2005.lite_economy.data.AccountOwner;
 import me.samuelh2005.lite_economy.data.BankAccount;
 import me.samuelh2005.lite_economy.data.Business;
 import me.samuelh2005.lite_economy.data.Transaction;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 import net.minecraft.core.UUIDUtil;
@@ -62,24 +64,7 @@ public static final Codec<LevelNBTStorage> CODEC = RecordCodecBuilder.create(ins
         this.transactions = new HashMap<>(transactions);
     }
 
-    public Map<UUID, BankAccount> getBankAccounts() {
-        return bankAccounts;
-    }
-
-    @Override
-    public List<BankAccount> getBankAccountsByOwner(AccountOwner owner) {
-        return bankAccounts.values().stream()
-            .filter(account -> {
-                AccountOwner accountOwner = account.getOwner();
-                return accountOwner.getType() == owner.getType() && accountOwner.getId().equals(owner.getId());
-            })
-            .toList();
-    }
-
-    @Override
-    public Optional<BankAccount> getBankAccountById(UUID id) {
-        return Optional.ofNullable(bankAccounts.get(id));
-    }
+    // == Bank Account Methods ==
 
     @Override
     public Optional<BankAccount> createBankAccount(String accountName, AccountOwner owner, double initialBalance) {
@@ -96,9 +81,52 @@ public static final Codec<LevelNBTStorage> CODEC = RecordCodecBuilder.create(ins
         return Optional.of(account);
     }
 
-    public Map<UUID, Business> getBusinesses() {
-        return businesses;
+    @Override
+    public Optional<BankAccount> createBankAccount(String accountName, AccountOwner owner) {
+        return createBankAccount(accountName, owner, 0);
     }
+
+    @Override
+    public Optional<BankAccount> createBankAccount(String name, Player owner) {
+        return createBankAccount(name, AccountOwner.forPlayer(owner));
+    }
+
+    @Override
+    public Optional<BankAccount> createBankAccount(String name, Business business) {
+        return createBankAccount(name, AccountOwner.forBusiness(business));
+    }
+
+    @Override
+    public Map<UUID, BankAccount> getBankAccounts() {
+        return bankAccounts;
+    }
+
+    @Override
+    public List<BankAccount> getBankAccountsByOwner(AccountOwner owner) {
+        return bankAccounts.values().stream()
+            .filter(account -> {
+                AccountOwner accountOwner = account.getOwner();
+                return accountOwner.getType() == owner.getType() && accountOwner.getId().equals(owner.getId());
+            })
+            .toList();
+    }
+
+    @Override
+    public List<BankAccount> getBankAccounts(Player owner) {
+        return getBankAccountsByOwner(AccountOwner.forPlayer(owner));
+    }
+
+    @Override
+    public List<BankAccount> getBankAccounts(Business business) {
+        return getBankAccountsByOwner(AccountOwner.forBusiness(business));
+    }
+
+    @Override
+    public Optional<BankAccount> getBankAccountById(UUID id) {
+        return Optional.ofNullable(bankAccounts.get(id));
+    }
+
+    // == Business Methods ==
 
     @Override
     public Optional<Business> createBusiness(String name, AccountOwner owner) {
@@ -115,10 +143,47 @@ public static final Codec<LevelNBTStorage> CODEC = RecordCodecBuilder.create(ins
     }
 
     @Override
+    public Optional<Business> createBusiness(String name, Player owner) {
+        return createBusiness(name, AccountOwner.forPlayer(owner));
+    }
+
+    @Override
+    public Map<UUID, Business> getBusinesses() {
+        return businesses;
+    }
+
+    @Override
+    public List<Business> getBusinesses(Player player) {
+        return businesses.values().stream()
+            .filter(business -> business.getMembers().stream()
+                .anyMatch(member -> member.getPlayerId().equals(player.getUUID())))
+            .toList();
+    }
+
+    @Override
+    public List<Business> getManageableBusinesses(Player player) {
+        return getBusinesses(player).stream()
+            .filter(business -> business.isManageableBy(player.getUUID()))
+            .toList();
+    }
+
+    @Override
+    public List<BankAccount> getWithdrawableAccounts(Player player) {
+        List<BankAccount> accounts = new ArrayList<>(getBankAccounts(player));
+        for (Business business : getManageableBusinesses(player)) {
+            accounts.addAll(getBankAccounts(business));
+        }
+        return accounts;
+    }
+
+    @Override
     public Optional<Business> getBusinessById(UUID id) {
         return Optional.ofNullable(businesses.get(id));
     }
 
+    // == Transaction Methods ==
+
+    @Override
     public Map<UUID, Transaction> getTransactions() {
         return transactions;
     }
@@ -127,6 +192,8 @@ public static final Codec<LevelNBTStorage> CODEC = RecordCodecBuilder.create(ins
     public Optional<Transaction> getTransactionById(UUID id) {
         return Optional.ofNullable(transactions.get(id));
     }
+
+    // == Save Methods ==
 
     @Override
     public void save(BankAccount bankAccount) {

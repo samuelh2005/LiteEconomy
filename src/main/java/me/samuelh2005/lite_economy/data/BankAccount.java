@@ -7,9 +7,10 @@ import java.util.UUID;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
+import me.samuelh2005.lite_economy.commands.arguments.UUIDNameable;
 import net.minecraft.core.UUIDUtil;
 
-public class BankAccount {
+public class BankAccount implements UUIDNameable {
     private final UUID id;
     private final AccountOwner owner;
 
@@ -44,6 +45,11 @@ public class BankAccount {
 
     public AccountOwner getOwner() {
         return owner;
+    }
+
+    @Override
+    public String getDisplayName() {
+        return accountName;
     }
 
     public String getAccountName() {

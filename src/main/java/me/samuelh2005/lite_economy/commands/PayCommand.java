@@ -1,22 +1,20 @@
 package me.samuelh2005.lite_economy.commands;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
-import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 
 import me.samuelh2005.lite_economy.LiteEconomy;
 import me.samuelh2005.lite_economy.TransactionService;
+import me.samuelh2005.lite_economy.commands.arguments.NamedUUIDArgumentType;
 import me.samuelh2005.lite_economy.data.BankAccount;
-import me.samuelh2005.lite_economy.data.Business;
 import me.samuelh2005.lite_economy.data.Transaction;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -27,31 +25,29 @@ public final class PayCommand {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("pay")
             .requires(source -> source.getEntity() instanceof ServerPlayer)
-            .then(Commands.argument("from_account", StringArgumentType.string())
-                .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getWithdrawableAccountNames(getPlayer(context))), builder))
-                .then(Commands.argument("to_account", StringArgumentType.string())
-                    .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getAllAccountNames()), builder))
+            .then(Commands.argument("from_account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getWithdrawableAccounts(getPlayer(ctx))))
+                .then(Commands.argument("to_account", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getBankAccounts().values().stream().toList()))
                     .then(Commands.argument("amount", DoubleArgumentType.doubleArg(0.01D))
                         .executes(PayCommand::transfer)))));
     }
 
     private static int transfer(CommandContext<CommandSourceStack> context) {
         ServerPlayer actor = getPlayer(context);
-        String fromName = StringArgumentType.getString(context, "from_account");
-        String toName = StringArgumentType.getString(context, "to_account");
+        UUID fromId = NamedUUIDArgumentType.getUUID(context, "from_account");
+        UUID toId = NamedUUIDArgumentType.getUUID(context, "to_account");
         BigDecimal amount = BigDecimal.valueOf(DoubleArgumentType.getDouble(context, "amount"));
 
-        Optional<BankAccount> from = resolveFromAccount(actor, fromName);
+        Optional<BankAccount> from = LiteEconomy.getDataStorage().getBankAccountById(fromId);
         if (from.isEmpty()) {
-            context.getSource().sendFailure(Component.literal("You cannot transfer from account: " + fromName));
+            context.getSource().sendFailure(Component.literal("Source account not found."));
             return 0;
         }
-        Optional<BankAccount> to = resolveUniqueAccount(toName);
+        Optional<BankAccount> to = LiteEconomy.getDataStorage().getBankAccountById(toId);
         if (to.isEmpty()) {
-            context.getSource().sendFailure(Component.literal("Could not resolve destination account: " + toName));
+            context.getSource().sendFailure(Component.literal("Destination account not found."));
             return 0;
         }
-        if (from.get().getId().equals(to.get().getId())) {
+        if (fromId.equals(toId)) {
             context.getSource().sendFailure(Component.literal("Source and destination accounts must be different."));
             return 0;
         }
@@ -80,71 +76,6 @@ public final class PayCommand {
             false
         );
         return 1;
-    }
-
-    private static Optional<BankAccount> resolveFromAccount(ServerPlayer actor, String accountName) {
-        String normalized = accountName.trim();
-
-        Optional<BankAccount> personal = LiteEconomy.getDataStorage().getBankAccounts(actor).stream()
-            .filter(account -> account.getAccountName().equalsIgnoreCase(normalized))
-            .findFirst();
-        if (personal.isPresent()) {
-            return personal;
-        }
-
-        List<Business> businesses = LiteEconomy.getDataStorage().getBusinesses(actor);
-        for (Business business : businesses) {
-            boolean canWithdraw = business.getMembers().stream()
-                .anyMatch(member ->
-                    member.getPlayerId().equals(actor.getUUID()) &&
-                    (member.getRole() == Business.BusinessMember.Role.OWNER || member.getRole() == Business.BusinessMember.Role.MANAGER));
-            if (!canWithdraw) {
-                continue;
-            }
-            Optional<BankAccount> account = LiteEconomy.getDataStorage().getBankAccounts(business).stream()
-                .filter(found -> found.getAccountName().equalsIgnoreCase(normalized))
-                .findFirst();
-            if (account.isPresent()) {
-                return account;
-            }
-        }
-
-        return Optional.empty();
-    }
-
-    private static Optional<BankAccount> resolveUniqueAccount(String accountName) {
-        String normalized = accountName.trim();
-        List<BankAccount> matching = LiteEconomy.getDataStorage().getBankAccounts().values()
-            .stream()
-            .filter(account -> account.getAccountName().equalsIgnoreCase(normalized))
-            .toList();
-        if (matching.size() == 1) {
-            return Optional.of(matching.get(0));
-        }
-        return Optional.empty();
-    }
-
-    private static List<String> getWithdrawableAccountNames(ServerPlayer actor) {
-        List<String> names = new java.util.ArrayList<>();
-        names.addAll(LiteEconomy.getDataStorage().getBankAccounts(actor).stream().map(BankAccount::getAccountName).toList());
-        for (Business business : LiteEconomy.getDataStorage().getBusinesses(actor)) {
-            boolean canWithdraw = business.getMembers().stream()
-                .anyMatch(member ->
-                    member.getPlayerId().equals(actor.getUUID()) &&
-                    (member.getRole() == Business.BusinessMember.Role.OWNER || member.getRole() == Business.BusinessMember.Role.MANAGER));
-            if (!canWithdraw) {
-                continue;
-            }
-            names.addAll(LiteEconomy.getDataStorage().getBankAccounts(business).stream().map(BankAccount::getAccountName).toList());
-        }
-        return names.stream().distinct().toList();
-    }
-
-    private static List<String> getAllAccountNames() {
-        return LiteEconomy.getDataStorage().getBankAccounts().values().stream()
-            .map(BankAccount::getAccountName)
-            .distinct()
-            .toList();
     }
 
     private static ServerPlayer getPlayer(CommandContext<CommandSourceStack> context) {

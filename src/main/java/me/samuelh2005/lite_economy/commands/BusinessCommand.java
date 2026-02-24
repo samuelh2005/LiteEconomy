@@ -11,18 +11,20 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 
 import me.samuelh2005.lite_economy.LiteEconomy;
+import me.samuelh2005.lite_economy.commands.arguments.NamedUUIDArgumentType;
 import me.samuelh2005.lite_economy.data.AccountOwner;
 import me.samuelh2005.lite_economy.data.Business;
 import me.samuelh2005.lite_economy.data.Business.BusinessMember;
 import me.samuelh2005.lite_economy.data.Business.BusinessMember.Role;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 public final class BusinessCommand {
+    private static final String ERR_BUSINESS_NOT_FOUND_MANAGEABLE = "Business not found or you do not have permission.";
+
     private BusinessCommand() {
     }
 
@@ -35,29 +37,24 @@ public final class BusinessCommand {
                     .then(Commands.argument("name", StringArgumentType.string())
                         .executes(BusinessCommand::create)))
                 .then(Commands.literal("info")
-                    .then(Commands.argument("name", StringArgumentType.string())
-                        .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getMemberBusinessNames(getPlayer(context))), builder))
+                    .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getBusinesses(getPlayer(ctx))))
                         .executes(BusinessCommand::info)))
                 .then(Commands.literal("rename")
-                    .then(Commands.argument("business", StringArgumentType.string())
-                        .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getMemberBusinessNames(getPlayer(context))), builder))
+                    .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getManageableBusinesses(getPlayer(ctx))))
                         .then(Commands.argument("new_name", StringArgumentType.string())
                             .executes(BusinessCommand::rename))))
                 .then(Commands.literal("member")
                     .then(Commands.literal("add")
-                        .then(Commands.argument("business", StringArgumentType.string())
-                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getMemberBusinessNames(getPlayer(context))), builder))
+                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getManageableBusinesses(getPlayer(ctx))))
                             .then(Commands.argument("player", EntityArgument.player())
                                 .executes(BusinessCommand::addMember))))
                     .then(Commands.literal("remove")
-                        .then(Commands.argument("business", StringArgumentType.string())
-                            .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getMemberBusinessNames(getPlayer(context))), builder))
+                        .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getManageableBusinesses(getPlayer(ctx))))
                             .then(Commands.argument("player", EntityArgument.player())
                                 .executes(BusinessCommand::removeMember))))
                     .then(Commands.literal("role")
                         .then(Commands.literal("set")
-                            .then(Commands.argument("business", StringArgumentType.string())
-                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(CommandSuggestionUtil.quoteAll(getMemberBusinessNames(getPlayer(context))), builder))
+                            .then(Commands.argument("business", NamedUUIDArgumentType.namedUUID(ctx -> LiteEconomy.getDataStorage().getManageableBusinesses(getPlayer(ctx))))
                                 .then(Commands.argument("player", EntityArgument.player())
                                     .then(Commands.literal("owner").executes(context -> setRole(context, Role.OWNER)))
                                     .then(Commands.literal("manager").executes(context -> setRole(context, Role.MANAGER)))
@@ -75,7 +72,11 @@ public final class BusinessCommand {
 
         context.getSource().sendSuccess(() -> Component.literal("Your businesses:"), false);
         for (Business business : businesses) {
-            Role role = getMemberRole(business, player.getUUID()).orElse(Role.EMPLOYEE);
+            Role role = business.getMembers().stream()
+                .filter(member -> member.getPlayerId().equals(player.getUUID()))
+                .map(BusinessMember::getRole)
+                .findFirst()
+                .orElse(Role.EMPLOYEE);
             context.getSource().sendSuccess(
                 () -> Component.literal("- " + business.getName() + " | members=" + business.getMembers().size() + " | role=" + role.name().toLowerCase()),
                 false
@@ -104,11 +105,10 @@ public final class BusinessCommand {
 
     private static int info(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        String name = StringArgumentType.getString(context, "name");
-
-        Optional<Business> business = resolveMemberBusiness(player, name);
-        if (business.isEmpty()) {
-            context.getSource().sendFailure(Component.literal("Business not found or you are not a member: " + name));
+        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
+        Optional<Business> business = LiteEconomy.getDataStorage().getBusinessById(businessId);
+        if (business.isEmpty() || business.get().getMembers().stream().noneMatch(m -> m.getPlayerId().equals(player.getUUID()))) {
+            context.getSource().sendFailure(Component.literal("Business not found or you are not a member."));
             return 0;
         }
 
@@ -124,20 +124,16 @@ public final class BusinessCommand {
 
     private static int rename(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = getPlayer(context);
-        String name = StringArgumentType.getString(context, "business");
+        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
         String newName = StringArgumentType.getString(context, "new_name").trim();
         if (newName.isBlank()) {
             context.getSource().sendFailure(Component.literal("New business name cannot be blank."));
             return 0;
         }
 
-        Optional<Business> business = resolveMemberBusiness(player, name);
-        if (business.isEmpty()) {
-            context.getSource().sendFailure(Component.literal("Business not found: " + name));
-            return 0;
-        }
-        if (!isOwnerOrManager(business.get(), player.getUUID())) {
-            context.getSource().sendFailure(Component.literal("You do not have permission to rename this business."));
+        Optional<Business> business = LiteEconomy.getDataStorage().getBusinessById(businessId);
+        if (business.isEmpty() || !business.get().isManageableBy(player.getUUID())) {
+            context.getSource().sendFailure(Component.literal("Business not found or you do not have permission to rename it."));
             return 0;
         }
 
@@ -147,18 +143,26 @@ public final class BusinessCommand {
         return 1;
     }
 
+    /**
+     * Validates that the business exists and the player can manage it. Returns empty if validation fails
+     * and sends failure message.
+     */
+    private static Optional<Business> validateManageableBusiness(CommandContext<CommandSourceStack> context, ServerPlayer actor, UUID businessId) {
+        Optional<Business> business = LiteEconomy.getDataStorage().getBusinessById(businessId);
+        if (business.isEmpty() || !business.get().isManageableBy(actor.getUUID())) {
+            context.getSource().sendFailure(Component.literal(ERR_BUSINESS_NOT_FOUND_MANAGEABLE));
+            return Optional.empty();
+        }
+        return business;
+    }
+
     private static int addMember(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         ServerPlayer actor = getPlayer(context);
         ServerPlayer target = EntityArgument.getPlayer(context, "player");
-        String name = StringArgumentType.getString(context, "business");
+        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
 
-        Optional<Business> business = resolveMemberBusiness(actor, name);
+        Optional<Business> business = validateManageableBusiness(context, actor, businessId);
         if (business.isEmpty()) {
-            context.getSource().sendFailure(Component.literal("Business not found: " + name));
-            return 0;
-        }
-        if (!isOwnerOrManager(business.get(), actor.getUUID())) {
-            context.getSource().sendFailure(Component.literal("You do not have permission to add members."));
             return 0;
         }
         boolean exists = business.get().getMembers().stream().anyMatch(member -> member.getPlayerId().equals(target.getUUID()));
@@ -178,15 +182,10 @@ public final class BusinessCommand {
     private static int removeMember(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         ServerPlayer actor = getPlayer(context);
         ServerPlayer target = EntityArgument.getPlayer(context, "player");
-        String name = StringArgumentType.getString(context, "business");
+        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
 
-        Optional<Business> business = resolveMemberBusiness(actor, name);
+        Optional<Business> business = validateManageableBusiness(context, actor, businessId);
         if (business.isEmpty()) {
-            context.getSource().sendFailure(Component.literal("Business not found: " + name));
-            return 0;
-        }
-        if (!isOwnerOrManager(business.get(), actor.getUUID())) {
-            context.getSource().sendFailure(Component.literal("You do not have permission to remove members."));
             return 0;
         }
 
@@ -210,15 +209,10 @@ public final class BusinessCommand {
     private static int setRole(CommandContext<CommandSourceStack> context, Role role) throws CommandSyntaxException {
         ServerPlayer actor = getPlayer(context);
         ServerPlayer target = EntityArgument.getPlayer(context, "player");
-        String name = StringArgumentType.getString(context, "business");
+        UUID businessId = NamedUUIDArgumentType.getUUID(context, "business");
 
-        Optional<Business> business = resolveMemberBusiness(actor, name);
+        Optional<Business> business = validateManageableBusiness(context, actor, businessId);
         if (business.isEmpty()) {
-            context.getSource().sendFailure(Component.literal("Business not found: " + name));
-            return 0;
-        }
-        if (!isOwnerOrManager(business.get(), actor.getUUID())) {
-            context.getSource().sendFailure(Component.literal("You do not have permission to set roles."));
             return 0;
         }
 
@@ -231,7 +225,7 @@ public final class BusinessCommand {
         }
 
         member.get().setRole(role);
-        if (business.get().getMembers().stream().noneMatch(existing -> existing.getRole() == Role.OWNER)) {
+        if (!business.get().hasOwner()) {
             context.getSource().sendFailure(Component.literal("Business must always have at least one owner."));
             return 0;
         }
@@ -241,31 +235,6 @@ public final class BusinessCommand {
             true
         );
         return 1;
-    }
-
-    private static Optional<Business> resolveMemberBusiness(ServerPlayer player, String businessName) {
-        String normalized = businessName.trim();
-        return LiteEconomy.getDataStorage().getBusinesses(player).stream()
-            .filter(business -> business.getName().equalsIgnoreCase(normalized))
-            .findFirst();
-    }
-
-    private static List<String> getMemberBusinessNames(ServerPlayer player) {
-        return LiteEconomy.getDataStorage().getBusinesses(player).stream()
-            .map(Business::getName)
-            .toList();
-    }
-
-    private static Optional<Role> getMemberRole(Business business, UUID playerId) {
-        return business.getMembers().stream()
-            .filter(member -> member.getPlayerId().equals(playerId))
-            .map(BusinessMember::getRole)
-            .findFirst();
-    }
-
-    private static boolean isOwnerOrManager(Business business, UUID playerId) {
-        return business.getMembers().stream()
-            .anyMatch(member -> member.getPlayerId().equals(playerId) && (member.getRole() == Role.OWNER || member.getRole() == Role.MANAGER));
     }
 
     private static void replaceMembers(Business business, List<BusinessMember> members) {

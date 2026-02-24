@@ -217,13 +217,7 @@ public class TransactionService {
         }
         if (owner.getType() == AccountOwner.Type.BUSINESS) {
             Optional<Business> business = LiteEconomy.getDataStorage().getBusinessById(owner.getId());
-            if (business.isEmpty()) {
-                return false;
-            }
-            return business.get().getMembers().stream()
-                .anyMatch(member ->
-                    member.getPlayerId().equals(actorId) &&
-                    (member.getRole() == Business.BusinessMember.Role.OWNER || member.getRole() == Business.BusinessMember.Role.MANAGER));
+            return business.isPresent() && business.get().isManageableBy(actorId);
         }
         return false;
     }

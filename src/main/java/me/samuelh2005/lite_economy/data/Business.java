@@ -7,10 +7,11 @@ import java.util.UUID;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
+import me.samuelh2005.lite_economy.commands.arguments.UUIDNameable;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.world.entity.player.Player;
 
-public class Business {
+public class Business implements UUIDNameable {
     private final UUID id;
     private String name;
     private List<BusinessMember> members;
@@ -35,12 +36,32 @@ public class Business {
         return members;
     }
 
+    @Override
+    public String getDisplayName() {
+        return name;
+    }
+
     public String getName() {
         return name;
     }
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    /**
+     * Returns true if the given player is an OWNER or MANAGER of this business,
+     * and therefore has permission to perform management actions (withdraw, rename, add/remove members, etc.).
+     */
+    public boolean isManageableBy(UUID playerId) {
+        return members.stream().anyMatch(member ->
+            member.getPlayerId().equals(playerId) &&
+            (member.getRole() == BusinessMember.Role.OWNER || member.getRole() == BusinessMember.Role.MANAGER));
+    }
+
+    /** Returns true if this business has at least one member with the OWNER role. */
+    public boolean hasOwner() {
+        return members.stream().anyMatch(member -> member.getRole() == BusinessMember.Role.OWNER);
     }
 
     public static class BusinessMember {
